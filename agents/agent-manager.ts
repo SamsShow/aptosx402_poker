@@ -153,7 +153,18 @@ class AgentManager {
 }
 
 // Singleton instance
-export const agentManager = new AgentManager();
+// Use global to persist across Next.js hot reloads and API routes
+declare global {
+  // eslint-disable-next-line no-var
+  var agentManagerInstance: AgentManager | undefined;
+}
+
+// Singleton instance - use globalThis to persist across API routes
+if (!globalThis.agentManagerInstance) {
+  globalThis.agentManagerInstance = new AgentManager();
+}
+
+export const agentManager = globalThis.agentManagerInstance;
 
 // Initialize on module load
 if (typeof window === "undefined") {

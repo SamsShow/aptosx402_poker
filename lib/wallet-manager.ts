@@ -361,5 +361,15 @@ class WalletManager {
   }
 }
 
-// Singleton instance
-export const walletManager = new WalletManager();
+// Use global to persist across Next.js hot reloads and API routes
+declare global {
+  // eslint-disable-next-line no-var
+  var walletManagerInstance: WalletManager | undefined;
+}
+
+// Singleton instance - use globalThis to persist across API routes
+if (!globalThis.walletManagerInstance) {
+  globalThis.walletManagerInstance = new WalletManager();
+}
+
+export const walletManager = globalThis.walletManagerInstance;

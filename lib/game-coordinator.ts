@@ -359,6 +359,16 @@ class GameCoordinator {
   }
 }
 
-// Singleton instance
-export const gameCoordinator = new GameCoordinator();
+// Use global to persist across Next.js hot reloads and API routes
+declare global {
+  // eslint-disable-next-line no-var
+  var gameCoordinatorInstance: GameCoordinator | undefined;
+}
+
+// Singleton instance - use globalThis to persist across API routes
+if (!globalThis.gameCoordinatorInstance) {
+  globalThis.gameCoordinatorInstance = new GameCoordinator();
+}
+
+export const gameCoordinator = globalThis.gameCoordinatorInstance;
 

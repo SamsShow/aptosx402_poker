@@ -52,32 +52,52 @@ class GameLoop {
       let handCount = 0;
       
       while (!this.shouldStop && handCount < maxHands) {
-        // Start a new hand
-        const startResult = await gameCoordinator.startHand(gameId);
-        if (!startResult.success) {
-          console.error("[GameLoop] Failed to start hand:", startResult.error);
+        // Get current game state
+        let gameState = gameCoordinator.getGame(gameId);
+        if (!gameState) {
+          console.error("[GameLoop] Game not found");
           break;
         }
         
-        handCount++;
-        console.log(`[GameLoop] Starting hand ${handCount}`);
+        // If game is in waiting or settled state, start a new hand
+        if (gameState.stage === "waiting" || gameState.stage === "settled") {
+          const startResult = await gameCoordinator.startHand(gameId);
+          if (!startResult.success) {
+            console.error("[GameLoop] Failed to start hand:", startResult.error);
+            break;
+          }
+          gameState = startResult.newState!;
+          handCount++;
+          console.log(`[GameLoop] Starting hand ${handCount}`);
+        } else {
+          // Game is already in progress, continue playing
+          console.log(`[GameLoop] Continuing hand at stage: ${gameState.stage}`);
+          handCount = gameState.handNumber || 1;
+        }
         
-        let gameState = startResult.newState!;
         onStateChange?.(gameState);
         
         // Play the hand
-        while (!this.shouldStop && gameState.stage !== "settled") {
+        while (!this.shouldStop && gameState.stage !== "settled" && gameState.stage !== "showdown") {
+          // Refresh game state
+          gameState = gameCoordinator.getGame(gameId)!;
+          if (!gameState) break;
+          
+          // Check if we're at showdown
+          if (gameState.stage === "showdown" || gameState.stage === "settled") {
+            break;
+          }
+          
           // Get current player
           const currentPlayer = gameState.players[gameState.currentPlayerIndex];
           
           if (!currentPlayer || currentPlayer.folded || currentPlayer.isAllIn) {
-            // Should not happen, but advance if it does
+            // Skip this player, advance turn
             await sleep(100);
-            gameState = gameCoordinator.getGame(gameId)!;
             continue;
           }
           
-          console.log(`[GameLoop] ${currentPlayer.name}'s turn`);
+          console.log(`[GameLoop] ${currentPlayer.name}'s turn (stage: ${gameState.stage})`);
           
           try {
             // Get agent decision
@@ -124,14 +144,19 @@ class GameLoop {
           gameState = gameCoordinator.getGame(gameId)!;
         }
         
-        // Record results
-        const winners = gameState.players.filter((p) => !p.folded);
-        for (const player of gameState.players) {
-          const won = winners.some((w) => w.id === player.id);
-          agentManager.recordResult(player.id, won);
-        }
+        // Final state update
+        gameState = gameCoordinator.getGame(gameId)!;
         
-        console.log(`[GameLoop] Hand ${handCount} complete. Winners: ${winners.map(w => w.name).join(", ")}`);
+        // Record results
+        if (gameState) {
+          const winners = gameState.players.filter((p) => !p.folded);
+          for (const player of gameState.players) {
+            const won = winners.some((w) => w.id === player.id);
+            agentManager.recordResult(player.id, won);
+          }
+          
+          console.log(`[GameLoop] Hand ${handCount} complete. Winners: ${winners.map(w => w.name).join(", ")}`);
+        }
         
         // Delay between hands
         if (!this.shouldStop && handCount < maxHands) {
@@ -172,6 +197,15 @@ class GameLoop {
   }
 }
 
-// Singleton instance
-export const gameLoop = new GameLoop();
+// Use global to persist across Next.js hot reloads and API routes
+declare global {
+  // eslint-disable-next-line no-var
+  var gameLoopInstance: GameLoop | undefined;
+}
 
+// Singleton instance - use globalThis to persist across API routes
+if (!globalThis.gameLoopInstance) {
+  globalThis.gameLoopInstance = new GameLoop();
+}
+
+export const gameLoop = globalThis.gameLoopInstance;

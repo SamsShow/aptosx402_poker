@@ -2,12 +2,20 @@
 
 import { useGameStore } from "@/lib/store/game-store";
 import { formatAddress } from "@/lib/utils";
-import { ExternalLink, Copy, CheckCircle, Gamepad2 } from "lucide-react";
+import { ExternalLink, Copy, CheckCircle, Gamepad2, Play, Square, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
-export function GameInfo() {
+interface GameInfoProps {
+  gameId?: string;
+}
+
+export function GameInfo({ gameId }: GameInfoProps) {
   const { gameState, isConnected } = useGameStore();
   const [copied, setCopied] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
   
   if (!gameState) {
     return (
@@ -27,6 +35,53 @@ export function GameInfo() {
     await navigator.clipboard.writeText(gameState.gameId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const startGame = async () => {
+    if (!gameId) return;
+    
+    setIsStarting(true);
+    try {
+      // Start the game loop - it will handle starting hands automatically
+      const res = await fetch(`/api/game/${gameId}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          turnDelay: 3000, // 3 seconds between turns
+          handDelay: 5000, // 5 seconds between hands
+          maxHands: 100,
+        }),
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        setIsRunning(true);
+      }
+    } catch (error) {
+      console.error("Failed to start game:", error);
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const stopGame = async () => {
+    if (!gameId) return;
+    
+    setIsStopping(true);
+    try {
+      const res = await fetch(`/api/game/${gameId}/run`, {
+        method: "DELETE",
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        setIsRunning(false);
+      }
+    } catch (error) {
+      console.error("Failed to stop game:", error);
+    } finally {
+      setIsStopping(false);
+    }
   };
   
   return (
@@ -66,6 +121,52 @@ export function GameInfo() {
             )}
           </button>
         </div>
+      </div>
+
+      {/* Game Controls */}
+      <div className="mb-4">
+        <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2 block">
+          Game Controls
+        </label>
+        <div className="flex gap-2">
+          {!isRunning ? (
+            <Button
+              variant="call"
+              size="sm"
+              className="flex-1 gap-2"
+              onClick={startGame}
+              disabled={isStarting}
+            >
+              {isStarting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {gameState.stage === "waiting" ? "Start Game" : "Resume Game"}
+            </Button>
+          ) : (
+            <Button
+              variant="fold"
+              size="sm"
+              className="flex-1 gap-2"
+              onClick={stopGame}
+              disabled={isStopping}
+            >
+              {isStopping ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Square className="h-4 w-4" />
+              )}
+              Stop Game
+            </Button>
+          )}
+        </div>
+        {isRunning && (
+          <p className="text-xs text-comic-green font-bold mt-2 flex items-center gap-1">
+            <span className="w-2 h-2 bg-comic-green rounded-full animate-pulse" />
+            Game loop running...
+          </p>
+        )}
       </div>
       
       {/* Divider */}
