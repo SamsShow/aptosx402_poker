@@ -227,7 +227,7 @@ export function GameInfo({ gameId }: GameInfoProps) {
       
       {/* View on explorer link */}
       <a 
-        href={`https://explorer.aptoslabs.com/account/${gameState.gameId}?network=devnet`}
+        href={`https://explorer.aptoslabs.com/account/${gameState.gameId}?network=testnet`}
         target="_blank"
         rel="noopener noreferrer"
         className="comic-btn bg-comic-blue text-white px-4 py-2 flex items-center justify-center gap-2 w-full"
