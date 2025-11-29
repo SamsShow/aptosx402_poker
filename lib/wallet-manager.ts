@@ -2,6 +2,7 @@
  * Wallet Manager
  * 
  * Manages agent wallets with private keys stored in Neon database
+ * Works in demo mode without database (generates in-memory wallets)
  */
 
 import { Account, Ed25519PrivateKey } from "@aptos-labs/ts-sdk";

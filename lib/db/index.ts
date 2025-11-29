@@ -12,14 +12,16 @@ import * as schema from "./schema";
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
-  console.warn("[DB] DATABASE_URL not set - database operations will fail");
+  throw new Error("[DB] DATABASE_URL environment variable is required");
 }
 
 // Create Neon client
-const sql = neon(databaseUrl || "");
+const sql = neon(databaseUrl);
 
 // Export drizzle instance
 export const db = drizzle(sql, { schema });
+
+console.log("[DB] Database connection initialized");
 
 // Export schema
 export * from "./schema";

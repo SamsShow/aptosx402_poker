@@ -96,12 +96,20 @@ class GameCoordinator {
   }
   
   /**
-   * Get all active games
+   * Get all active games (excludes settled games)
    */
   getActiveGames(): GameState[] {
     return Array.from(this.games.values())
       .map((session) => session.state)
       .filter((state) => state.stage !== "settled");
+  }
+  
+  /**
+   * Get all games (including settled ones)
+   */
+  getAllGames(): GameState[] {
+    return Array.from(this.games.values())
+      .map((session) => session.state);
   }
   
   /**

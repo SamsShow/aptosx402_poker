@@ -45,12 +45,13 @@ export const AGENT_CONFIGS: Record<AgentModel, AgentConfig> = {
 };
 
 // GitHub Model API endpoints
+// Note: Using models available on GitHub Models (https://github.com/marketplace/models)
 export const GITHUB_MODEL_ENDPOINTS: Record<AgentModel, string> = {
-  claude: "anthropic/claude-sonnet-4-20250514",
-  gpt4: "openai/gpt-4o",
-  gemini: "google/gemini-2.0-flash-001",
-  deepseek: "deepseek/DeepSeek-V3-0324",
-  grok: "x-ai/grok-3-mini",
+  claude: "anthropic/claude-3.5-sonnet",     // Claude 3.5 Sonnet
+  gpt4: "openai/gpt-4o",                      // GPT-4o
+  gemini: "google/gemini-2.0-flash-001",      // Gemini 2.0 Flash
+  deepseek: "deepseek/DeepSeek-V3-0324",      // DeepSeek V3
+  grok: "openai/gpt-4o-mini",                 // Fallback - Grok not available on GitHub Models
 };
 
 // System prompts for each agent personality

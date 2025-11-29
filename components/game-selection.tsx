@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { 
@@ -19,6 +19,7 @@ interface GameSummary {
   playerCount: number;
   pot: number;
   handNumber: number;
+  createdAt?: number;
   players: {
     id: string;
     name: string;
@@ -32,34 +33,67 @@ interface GameSelectionProps {
   onCreateGame: () => Promise<string | null>;
 }
 
+// Maximum games to display in the lobby
+const MAX_GAMES_DISPLAY = 20;
+
 export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps) {
   const [games, setGames] = useState<GameSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const isMounted = useRef(true);
 
-  const fetchGames = async () => {
+  // Silent fetch that updates games without loading state
+  const fetchGames = useCallback(async (showRefreshIndicator = false) => {
+    if (showRefreshIndicator) setIsRefreshing(true);
+    
     try {
-      setLoading(true);
-      setError(null);
       const res = await fetch("/api/game");
       const data = await res.json();
       
+      if (!isMounted.current) return;
+      
       if (data.success) {
-        setGames(data.games);
+        // Limit displayed games and sort by newest first
+        const sortedGames = (data.games as GameSummary[])
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+          .slice(0, MAX_GAMES_DISPLAY);
+        
+        setGames(sortedGames);
+        setError(null);
       } else {
-        setError(data.error || "Failed to fetch games");
+        // Only show error on initial load, not on refresh
+        if (initialLoading) {
+          setError(data.error || "Failed to fetch games");
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to connect");
+      if (!isMounted.current) return;
+      // Only show error on initial load
+      if (initialLoading) {
+        setError(err instanceof Error ? err.message : "Failed to connect");
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setInitialLoading(false);
+        setIsRefreshing(false);
+      }
     }
-  };
+  }, [initialLoading]);
 
   useEffect(() => {
+    isMounted.current = true;
     fetchGames();
-  }, []);
+    
+    // Auto-refresh every 5 seconds (silent, no loading indicator)
+    const interval = setInterval(() => fetchGames(false), 5000);
+    
+    return () => {
+      isMounted.current = false;
+      clearInterval(interval);
+    };
+  }, [fetchGames]);
 
   const handleCreateGame = async () => {
     setCreating(true);
@@ -71,6 +105,11 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
     } finally {
       setCreating(false);
     }
+  };
+
+  // Manual refresh with indicator
+  const handleManualRefresh = () => {
+    fetchGames(true);
   };
 
   const formatStage = (stage: string): string => {
@@ -128,11 +167,11 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
         >
           <Button 
             variant="outline" 
-            onClick={fetchGames}
-            disabled={loading}
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
             className="gap-2"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
           
@@ -162,8 +201,8 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
           </motion.div>
         )}
 
-        {/* Loading state */}
-        {loading && (
+        {/* Loading state - only on initial load */}
+        {initialLoading && (
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
               <Loader2 className="h-12 w-12 animate-spin text-comic-blue mx-auto mb-4" />
@@ -173,7 +212,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
         )}
 
         {/* Games list */}
-        {!loading && games.length === 0 && (
+        {!initialLoading && games.length === 0 && (
           <motion.div
             className="comic-card p-12 text-center"
             initial={{ scale: 0.95, opacity: 0 }}
@@ -201,16 +240,15 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
           </motion.div>
         )}
 
-        {!loading && games.length > 0 && (
+        {!initialLoading && games.length > 0 && (
           <div className="space-y-4">
             {games.map((game, index) => (
               <motion.div
                 key={game.gameId}
                 className="comic-card p-6 hover:translate-x-1 hover:-translate-y-1 transition-transform cursor-pointer"
                 onClick={() => onSelectGame(game.gameId)}
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: index * 0.1 }}
+                initial={false}
+                animate={{ opacity: 1 }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">

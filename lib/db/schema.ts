@@ -18,6 +18,7 @@ export const games = pgTable("games", {
   handNumber: integer("hand_number").notNull().default(0),
   totalHands: integer("total_hands").notNull().default(0),
   winnerId: text("winner_id"),
+  gameState: jsonb("game_state"), // Full GameState for persistence
 });
 
 // Agent wallets table - stores private keys
