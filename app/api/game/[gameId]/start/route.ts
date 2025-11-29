@@ -29,7 +29,7 @@ export async function POST(
     
     return NextResponse.json({
       success: true,
-      gameState: result.gameState,
+      gameState: result.newState,
     });
   } catch (error) {
     console.error("[API] Error starting hand:", error);

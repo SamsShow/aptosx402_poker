@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlayingCard } from "@/components/poker/playing-card";
+import type { Card } from "@/types";
 import { 
   Zap, 
   Brain, 
@@ -52,7 +53,7 @@ const FEATURES = [
 ];
 
 // Sample cards for animation
-const SAMPLE_COMMUNITY_CARDS = [
+const SAMPLE_COMMUNITY_CARDS: Card[] = [
   { rank: "7", suit: "hearts" },
   { rank: "6", suit: "clubs" },
   { rank: "8", suit: "clubs" },

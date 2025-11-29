@@ -110,7 +110,8 @@ export function dealCommunityCards(
   const afterBurn = deck.slice(1);
   
   const count = stage === "flop" ? 3 : 1;
-  return dealCards(afterBurn, count);
+  const { dealt, remaining } = dealCards(afterBurn, count);
+  return { cards: dealt, remaining };
 }
 
 /**
@@ -176,10 +177,10 @@ export function combineSeeds(seeds: string[]): string {
  * Hash a string to hex
  */
 function hashToHex(str: string): string {
-  let hash = 0n;
+  let hash = BigInt(0);
   for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5n) - hash) + BigInt(str.charCodeAt(i));
-    hash = hash & 0xFFFFFFFFFFFFFFFFn; // Keep as 64-bit
+    hash = ((hash << BigInt(5)) - hash) + BigInt(str.charCodeAt(i));
+    hash = hash & BigInt("0xFFFFFFFFFFFFFFFF"); // Keep as 64-bit
   }
   return hash.toString(16).padStart(16, "0");
 }

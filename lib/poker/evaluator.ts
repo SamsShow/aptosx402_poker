@@ -189,7 +189,7 @@ function checkFlush(cards: CardValue[]): boolean {
  * Check for a straight, returns high card of straight or 0
  */
 function checkStraight(cards: CardValue[]): number {
-  const ranks = [...new Set(cards.map((c) => c.rank))].sort((a, b) => b - a);
+  const ranks = Array.from(new Set(cards.map((c) => c.rank))).sort((a, b) => b - a);
   
   // Check normal straight
   for (let i = 0; i <= ranks.length - 5; i++) {

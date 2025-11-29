@@ -57,8 +57,11 @@ class WalletManager {
             console.log(`[WalletManager] Loaded existing wallet for ${config.name}: ${account.accountAddress.toString()}`);
           } else {
             // Generate new wallet and save to database using UPSERT
-            const account = Account.generate();
-            await this.saveWalletToDB(config.id, config.name, model, account);
+            // Generate private key first so we can store it
+            const privateKey = Ed25519PrivateKey.generate();
+            const privateKeyHex = privateKey.toString();
+            const account = Account.fromPrivateKey({ privateKey });
+            await this.saveWalletToDB(config.id, config.name, model, account, privateKeyHex);
             this.walletCache.set(config.id, account);
             console.log(`[WalletManager] Created new wallet for ${config.name}: ${account.accountAddress.toString()}`);
           }
@@ -73,13 +76,15 @@ class WalletManager {
               console.log(`[WalletManager] Loaded wallet from DB after error for ${config.name}: ${account.accountAddress.toString()}`);
             } catch (loadError) {
               // Generate in-memory wallet as last resort fallback
-              const account = Account.generate();
+              const privateKey = Ed25519PrivateKey.generate();
+              const account = Account.fromPrivateKey({ privateKey });
               this.walletCache.set(config.id, account);
               console.log(`[WalletManager] Created in-memory wallet for ${config.name}: ${account.accountAddress.toString()}`);
             }
           } else {
             // Generate in-memory wallet as fallback
-            const account = Account.generate();
+            const privateKey = Ed25519PrivateKey.generate();
+            const account = Account.fromPrivateKey({ privateKey });
             this.walletCache.set(config.id, account);
             console.log(`[WalletManager] Created in-memory wallet for ${config.name}: ${account.accountAddress.toString()}`);
           }
@@ -116,7 +121,8 @@ class WalletManager {
     agentId: string,
     name: string,
     model: string,
-    account: Account
+    account: Account,
+    privateKeyHex: string
   ): Promise<void> {
     try {
       await db
@@ -127,7 +133,7 @@ class WalletManager {
           model,
           address: account.accountAddress.toString(),
           publicKey: account.publicKey.toString(),
-          privateKey: account.privateKey.toString(),
+          privateKey: privateKeyHex,
           balance: 0,
         })
         .onConflictDoUpdate({
@@ -137,7 +143,7 @@ class WalletManager {
             model,
             address: account.accountAddress.toString(),
             publicKey: account.publicKey.toString(),
-            privateKey: account.privateKey.toString(),
+            privateKey: privateKeyHex,
             updatedAt: new Date(),
           },
         });
@@ -327,7 +333,7 @@ class WalletManager {
    * Fund all wallets from faucet
    */
   async fundAllFromFaucet(amount = 100_000_000): Promise<void> {
-    for (const [agentId] of this.walletCache) {
+    for (const [agentId] of Array.from(this.walletCache.entries())) {
       await this.fundFromFaucet(agentId, amount);
       // Add delay to avoid rate limiting
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -340,7 +346,7 @@ class WalletManager {
   getAgentAddresses(): Record<string, string> {
     const addresses: Record<string, string> = {};
     
-    for (const [agentId, wallet] of this.walletCache) {
+    for (const [agentId, wallet] of Array.from(this.walletCache.entries())) {
       addresses[agentId] = wallet.accountAddress.toString();
     }
     

@@ -120,7 +120,7 @@ class AgentManager {
   getAllStats(): Record<string, { totalHands: number; wins: number; winRate: number }> {
     const stats: Record<string, { totalHands: number; wins: number; winRate: number }> = {};
     
-    for (const [agentId, instance] of this.agents) {
+    for (const [agentId, instance] of Array.from(this.agents.entries())) {
       stats[agentId] = {
         totalHands: instance.totalHands,
         wins: instance.wins,
@@ -145,7 +145,7 @@ class AgentManager {
    * Reset agent statistics
    */
   resetStats(): void {
-    for (const instance of this.agents.values()) {
+    for (const instance of Array.from(this.agents.values())) {
       instance.totalHands = 0;
       instance.wins = 0;
     }
