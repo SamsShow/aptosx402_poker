@@ -18,9 +18,9 @@ interface ThoughtFeedProps {
 
 export function ThoughtFeed({ thoughts }: ThoughtFeedProps) {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-comic-purple comic-border flex items-center justify-center">
             <Brain className="h-4 w-4 text-white" />
@@ -33,27 +33,22 @@ export function ThoughtFeed({ thoughts }: ThoughtFeedProps) {
       </div>
       
       {/* Thought list */}
-      <ScrollArea className="flex-1 -mx-4 px-4">
+      <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6">
         <AnimatePresence initial={false}>
           {thoughts.length === 0 ? (
-            <div className="text-center py-8 comic-card p-6">
-              <Brain className="h-10 w-10 mx-auto mb-3 text-comic-purple" />
+            <div className="text-center py-12 comic-card p-8">
+              <Brain className="h-10 w-10 mx-auto mb-4 text-comic-purple" />
               <p className="font-comic text-lg">WAITING FOR THOUGHTS...</p>
-              <div className="comic-loading mt-4">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {thoughts.map((thought, index) => (
                 <ThoughtCard key={`${thought.timestamp}-${index}`} thought={thought} />
               ))}
             </div>
           )}
         </AnimatePresence>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -75,7 +70,7 @@ function ThoughtCard({ thought }: ThoughtCardProps) {
   
   return (
     <motion.div
-      className="thought-bubble p-4 cursor-pointer hover:translate-x-1 hover:-translate-y-1 transition-transform"
+      className="thought-bubble p-5 cursor-pointer hover:translate-x-1 hover:-translate-y-1 transition-transform"
       initial={{ opacity: 0, x: 50, scale: 0.9 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, x: -50, scale: 0.9 }}
@@ -118,13 +113,13 @@ function ThoughtCard({ thought }: ThoughtCardProps) {
       </div>
       
       {/* Thought content */}
-      <div className="mt-3 ml-13">
+      <div className="mt-4 ml-13">
         <p className="text-sm leading-relaxed font-body italic">
           &ldquo;{thought.thoughts}&rdquo;
         </p>
         
         {/* Confidence meter */}
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-4 flex items-center gap-2">
           <span className="text-xs font-bold uppercase">Confidence</span>
           <div className="flex-1 max-w-24 h-3 bg-muted border-2 border-foreground overflow-hidden">
             <div 

@@ -126,9 +126,9 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col halftone">
+    <div className="h-screen bg-background flex flex-col halftone overflow-hidden">
       {/* Header */}
-      <header className="bg-white comic-border border-t-0 border-x-0 px-6 py-4 flex items-center justify-between relative">
+      <header className="flex-shrink-0 bg-white comic-border border-t-0 border-x-0 px-6 py-4 flex items-center justify-between relative">
         {/* Decorative zigzag bottom */}
         <div className="absolute bottom-0 left-0 right-0 h-2 bg-comic-yellow" />
         
@@ -173,7 +173,7 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
 
       {/* Loading/Error states */}
       {isLoading && !gameState && (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center overflow-hidden">
           <div className="text-center">
             <div className="w-16 h-16 border-4 border-comic-blue border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <p className="font-bold text-muted-foreground">Loading game...</p>
@@ -182,7 +182,7 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
       )}
 
       {error && !gameState && (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center overflow-hidden">
           <div className="comic-card p-8 text-center max-w-md">
             <div className="w-16 h-16 bg-comic-red comic-border mx-auto mb-4 flex items-center justify-center">
               <span className="font-comic text-white text-2xl">!</span>
@@ -203,30 +203,33 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
 
       {/* Main content */}
       {gameState && (
-        <main className="flex-1 flex overflow-hidden">
+        <main className="flex-1 flex overflow-hidden min-h-0" style={{ height: 0 }}>
           {/* Left panel - Game Info */}
-          <aside className="w-80 bg-white comic-border border-t-0 border-l-0 p-4 overflow-y-auto">
+          <aside className="w-80 bg-white comic-border border-t-0 border-l-0 p-6 overflow-y-auto flex-shrink-0 h-full">
             <GameInfo gameId={selectedGameId} />
-            <div className="mt-6">
+            <div className="mt-8">
               <TransactionFeed transactions={transactions} />
             </div>
           </aside>
 
           {/* Center - Poker Table */}
-          <section className="flex-1 flex items-center justify-center p-8 relative">
+          <section className="flex-1 relative overflow-hidden min-h-0 h-full">
             {/* Background pattern */}
-            <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0 opacity-30 pointer-events-none">
               <div className="absolute inset-0" style={{
                 backgroundImage: `radial-gradient(circle at 25px 25px, hsl(var(--comic-yellow) / 0.3) 2px, transparent 0)`,
                 backgroundSize: '50px 50px'
               }} />
             </div>
             
-            <PokerTable gameState={gameState} />
+            {/* Poker table container - fixed at top */}
+            <div className="absolute inset-0 flex items-start justify-center pt-12 px-12 pb-12">
+              <PokerTable gameState={gameState} />
+            </div>
           </section>
 
           {/* Right panel - Thoughts */}
-          <aside className="w-96 bg-white comic-border border-t-0 border-r-0 p-4 overflow-hidden flex flex-col">
+          <aside className="w-96 bg-white comic-border border-t-0 border-r-0 p-6 flex flex-col flex-shrink-0 min-h-0 h-full">
             <ThoughtFeed thoughts={thoughts} />
           </aside>
         </main>

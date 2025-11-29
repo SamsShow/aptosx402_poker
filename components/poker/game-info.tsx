@@ -85,9 +85,9 @@ export function GameInfo({ gameId }: GameInfoProps) {
   };
   
   return (
-    <div className="comic-card p-4">
+    <div className="comic-card p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-comic-orange comic-border flex items-center justify-center">
             <Gamepad2 className="h-4 w-4 text-white" />
@@ -102,7 +102,7 @@ export function GameInfo({ gameId }: GameInfoProps) {
       </div>
       
       {/* Game ID */}
-      <div className="mb-4">
+      <div className="mb-6">
         <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
           Game ID
         </label>
@@ -124,8 +124,8 @@ export function GameInfo({ gameId }: GameInfoProps) {
       </div>
 
       {/* Game Controls */}
-      <div className="mb-4">
-        <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2 block">
+      <div className="mb-6">
+        <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3 block">
           Game Controls
         </label>
         <div className="flex gap-2">
@@ -162,7 +162,7 @@ export function GameInfo({ gameId }: GameInfoProps) {
           )}
         </div>
         {isRunning && (
-          <p className="text-xs text-comic-green font-bold mt-2 flex items-center gap-1">
+          <p className="text-xs text-comic-green font-bold mt-3 flex items-center gap-1">
             <span className="w-2 h-2 bg-comic-green rounded-full animate-pulse" />
             Game loop running...
           </p>
@@ -170,10 +170,10 @@ export function GameInfo({ gameId }: GameInfoProps) {
       </div>
       
       {/* Divider */}
-      <div className="h-1 bg-foreground my-4" />
+      <div className="h-1 bg-foreground my-6" />
       
       {/* Game stats */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-4 mb-6">
         <Stat label="Hand" value={`#${gameState.handNumber}`} />
         <Stat label="Stage" value={formatStage(gameState.stage)} highlight />
         <Stat label="Pot" value={`$${gameState.pot}`} color="comic-green" />
@@ -183,14 +183,14 @@ export function GameInfo({ gameId }: GameInfoProps) {
       </div>
       
       {/* Divider */}
-      <div className="h-1 bg-foreground my-4" />
+      <div className="h-1 bg-foreground my-6" />
       
       {/* Players */}
       <div>
-        <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3 block">
           Players ({gameState.players.filter(p => !p.folded).length}/{gameState.players.length} active)
         </label>
-        <div className="mt-2 space-y-2">
+        <div className="mt-3 space-y-3">
           {gameState.players.map((player, index) => (
             <div 
               key={player.id}

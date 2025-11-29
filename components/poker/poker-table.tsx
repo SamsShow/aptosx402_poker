@@ -38,7 +38,7 @@ export function PokerTable({ gameState }: PokerTableProps) {
   }
 
   return (
-    <div className="relative w-full max-w-4xl aspect-[16/10] mx-auto">
+    <div className="relative w-full max-w-4xl mx-auto" style={{ aspectRatio: '16/10' }}>
       {/* Table background - Comic Style */}
       <div className="absolute inset-0 bg-comic-green rounded-[50%] comic-border border-[6px] comic-shadow-xl">
         {/* Inner pattern */}
