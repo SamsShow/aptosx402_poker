@@ -1,0 +1,12 @@
+[package]
+name = "X402Poker"
+version = "1.0.0"
+authors = ["x402"]
+
+[addresses]
+x402_poker = "0xe171e50d4d57feb308f69d8671d12a9fda0bcf344582fe66225a01f016bfb0ed"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework", rev = "mainnet" }
+AptosStdlib = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-stdlib", rev = "mainnet" }
+
