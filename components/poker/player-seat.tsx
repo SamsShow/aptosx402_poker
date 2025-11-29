@@ -45,18 +45,6 @@ export function PlayerSeat({ player, isCurrentTurn, position }: PlayerSeatProps)
         "relative flex flex-col items-center w-full",
         isCurrentTurn && "animate-wiggle"
       )}>
-        {/* Turn indicator - Comic burst */}
-        {isCurrentTurn && (
-          <motion.div
-            className="absolute -inset-3 bg-comic-yellow border-3 border-foreground z-0"
-            style={{
-              clipPath: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)"
-            }}
-            animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
-            transition={{ duration: 0.5, repeat: Infinity }}
-          />
-        )}
-        
         {/* Avatar - Comic style */}
         <div className={cn(
           "relative z-10 flex items-center justify-center",

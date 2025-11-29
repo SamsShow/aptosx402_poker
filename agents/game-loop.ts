@@ -61,17 +61,20 @@ class GameLoop {
         
         // If game is in waiting or settled state, start a new hand
         if (gameState.stage === "waiting" || gameState.stage === "settled") {
+          console.log(`[GameLoop] Game in ${gameState.stage} state, starting hand...`);
           const startResult = await gameCoordinator.startHand(gameId);
           if (!startResult.success) {
             console.error("[GameLoop] Failed to start hand:", startResult.error);
-            break;
+            // Wait a bit and retry
+            await sleep(1000);
+            continue;
           }
           gameState = startResult.newState!;
-          handCount++;
-          console.log(`[GameLoop] Starting hand ${handCount}`);
+          handCount = gameState.handNumber || 1;
+          console.log(`[GameLoop] Started hand ${handCount}, stage: ${gameState.stage}`);
         } else {
           // Game is already in progress, continue playing
-          console.log(`[GameLoop] Continuing hand at stage: ${gameState.stage}`);
+          console.log(`[GameLoop] Continuing hand ${gameState.handNumber} at stage: ${gameState.stage}`);
           handCount = gameState.handNumber || 1;
         }
         
@@ -91,13 +94,20 @@ class GameLoop {
           // Get current player
           const currentPlayer = gameState.players[gameState.currentPlayerIndex];
           
-          if (!currentPlayer || currentPlayer.folded || currentPlayer.isAllIn) {
-            // Skip this player, advance turn
+          if (!currentPlayer) {
+            console.error(`[GameLoop] No player at index ${gameState.currentPlayerIndex}`);
             await sleep(100);
             continue;
           }
           
-          console.log(`[GameLoop] ${currentPlayer.name}'s turn (stage: ${gameState.stage})`);
+          if (currentPlayer.folded || currentPlayer.isAllIn) {
+            // Skip this player, advance turn
+            console.log(`[GameLoop] Skipping ${currentPlayer.name} (folded: ${currentPlayer.folded}, allIn: ${currentPlayer.isAllIn})`);
+            await sleep(100);
+            continue;
+          }
+          
+          console.log(`[GameLoop] ${currentPlayer.name}'s turn (stage: ${gameState.stage}, pot: ${gameState.pot}, currentBet: ${gameState.currentBet})`);
           
           try {
             // Get agent decision
@@ -105,6 +115,21 @@ class GameLoop {
               currentPlayer.id,
               gameState
             );
+            
+            if (!thought) {
+              console.error(`[GameLoop] No thought returned for ${currentPlayer.name}`);
+              // Default to fold if no thought
+              await gameCoordinator.processAction(
+                gameId,
+                currentPlayer.id,
+                "fold",
+                0
+              );
+              gameState = gameCoordinator.getGame(gameId)!;
+              continue;
+            }
+            
+            console.log(`[GameLoop] ${currentPlayer.name} decided: ${thought.action} ${thought.amount > 0 ? `$${thought.amount}` : ''}`);
             
             onThought?.(thought);
             
@@ -123,25 +148,34 @@ class GameLoop {
             if (actionResult.success && actionResult.newState) {
               gameState = actionResult.newState;
               onStateChange?.(gameState);
+              console.log(`[GameLoop] Action processed successfully, new stage: ${gameState.stage}`);
             } else {
               console.error("[GameLoop] Action failed:", actionResult.error);
-              // If action fails, try to continue
+              // If action fails, try to continue with next player
             }
           } catch (error) {
             console.error("[GameLoop] Error getting agent decision:", error);
             onError?.(error instanceof Error ? error : new Error(String(error)));
             
             // Default to fold on error
-            await gameCoordinator.processAction(
-              gameId,
-              currentPlayer.id,
-              "fold",
-              0
-            );
+            try {
+              await gameCoordinator.processAction(
+                gameId,
+                currentPlayer.id,
+                "fold",
+                0
+              );
+            } catch (foldError) {
+              console.error("[GameLoop] Failed to fold on error:", foldError);
+            }
           }
           
           // Update state
           gameState = gameCoordinator.getGame(gameId)!;
+          if (!gameState) {
+            console.error("[GameLoop] Game state lost after action");
+            break;
+          }
         }
         
         // Final state update
