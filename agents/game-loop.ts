@@ -184,12 +184,18 @@ class GameLoop {
         // Record results
         if (gameState) {
           const winners = gameState.players.filter((p) => !p.folded);
-          for (const player of gameState.players) {
-            const won = winners.some((w) => w.id === player.id);
-            agentManager.recordResult(player.id, won);
-          }
+          const potPerWinner = winners.length > 0 ? Math.floor(gameState.pot / winners.length) : 0;
           
-          console.log(`[GameLoop] Hand ${handCount} complete. Winners: ${winners.map(w => w.name).join(", ")}`);
+          // Record results for all players (await the async calls)
+          await Promise.all(
+            gameState.players.map((player) => {
+              const won = winners.some((w) => w.id === player.id);
+              const potWon = won ? potPerWinner : 0;
+              return agentManager.recordResult(player.id, won, potWon);
+            })
+          );
+          
+          console.log(`[GameLoop] Hand ${handCount} complete. Winners: ${winners.map(w => w.name).join(", ")}, Pot: ${gameState.pot}`);
         }
         
         // Delay between hands

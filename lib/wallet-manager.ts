@@ -8,7 +8,7 @@
 import { Account, Ed25519PrivateKey } from "@aptos-labs/ts-sdk";
 import type { AgentModel } from "@/types";
 import { AGENT_CONFIGS } from "@/types/agents";
-import { getAccountBalance, octasToApt, aptosClient } from "./aptos-client";
+import { getAccountBalance, octasToApt, fundFromFaucetAPI } from "./aptos-client";
 import { db, agentWallets, type AgentWallet } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -307,20 +307,21 @@ class WalletManager {
   
   /**
    * Fund a wallet from faucet (testnet only)
+   * Uses the faucet HTTP API since SDK method no longer works
    */
   async fundFromFaucet(agentId: string, amount = 100_000_000): Promise<boolean> {
     const wallet = this.walletCache.get(agentId);
     if (!wallet) return false;
     
+    const address = wallet.accountAddress.toString();
+    
     try {
-      await aptosClient.fundAccount({
-        accountAddress: wallet.accountAddress,
-        amount,
-      });
+      // Use the HTTP faucet API
+      await fundFromFaucetAPI(address, amount);
       console.log(`[WalletManager] Funded ${agentId} with ${amount} octas`);
       
       // Update balance in database
-      const newBalance = await getAccountBalance(wallet.accountAddress.toString());
+      const newBalance = await getAccountBalance(address);
       await this.updateBalanceInDB(agentId, Number(newBalance));
       
       return true;

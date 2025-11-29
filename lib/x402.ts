@@ -1,26 +1,52 @@
 /**
  * x402 Payment Integration
  * 
- * Uses the public x402 facilitator for poker game payments:
- * - Buy-in payments to escrow
- * - Bet payments with facilitator receipts
- * - Receipt verification
- * - Payout distributions
+ * This module integrates payments for the poker game using the aptos-x402 SDK.
+ * 
+ * ARCHITECTURE:
+ * ============
+ * 
+ * 1. DIRECT APT TRANSFERS (used for game mechanics):
+ *    - Agent buy-ins to game escrow
+ *    - Bet payments during gameplay  
+ *    - Pot distributions to winners
+ *    - Agent wallet funding
+ * 
+ * 2. X402 PROTOCOL (HTTP 402 Payment Required):
+ *    The x402 protocol is designed for machine-to-machine API payments.
+ *    Potential use cases in poker:
+ *    - Pay-per-game spectator access
+ *    - Premium API endpoints
+ *    - Pay-to-create custom tournaments
+ * 
+ * This module uses utilities from the 'aptos-x402' package and provides
+ * additional functions specific to poker game payments.
  */
 
 import {
-  Aptos,
-  AptosConfig,
-  Network,
   Account,
   Ed25519PrivateKey,
   AccountAddress,
 } from "@aptos-labs/ts-sdk";
 
-// Public x402 Facilitator URL
-const X402_FACILITATOR_URL = "https://aptos-x402.vercel.app/api/facilitator";
+// Import utilities from aptos-x402 package
+import {
+  getAptosClient,
+  getAccountFromPrivateKey,
+  signAndSubmitPayment,
+  getAccountBalance,
+} from "aptos-x402";
 
-// Types for x402 payments
+// Public x402 Facilitator URL (for HTTP 402 payment protocol)
+const X402_FACILITATOR_URL = process.env.FACILITATOR_URL || "https://aptos-x402.vercel.app/api/facilitator";
+
+// Get the network from environment
+const network = process.env.APTOS_NETWORK || "testnet";
+
+// Initialize Aptos client using aptos-x402 utility
+const aptos = getAptosClient(network);
+
+// Types for game payments
 export interface PaymentRequest {
   from: string;
   to: string;
@@ -63,82 +89,85 @@ export interface FacilitatorPaymentResponse {
   error?: string;
 }
 
-// Configuration
-const config = new AptosConfig({
-  network: (process.env.APTOS_NETWORK as Network) || Network.TESTNET,
-});
-
-const aptos = new Aptos(config);
-
 /**
  * Create an Aptos account from a private key
+ * Uses the aptos-x402 utility function
  */
 export function createAccountFromPrivateKey(privateKeyHex: string): Account {
-  const cleanKey = privateKeyHex.startsWith("0x") 
-    ? privateKeyHex.slice(2) 
-    : privateKeyHex;
-  const privateKey = new Ed25519PrivateKey(cleanKey);
-  return Account.fromPrivateKey({ privateKey });
-}
-
-/**
- * Get account balance
- */
-export async function getBalance(address: string): Promise<number> {
   try {
-    const resources = await aptos.getAccountResources({
-      accountAddress: AccountAddress.from(address),
-    });
-    
-    const coinResource = resources.find(
-      (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
-    );
-    
-    if (!coinResource) return 0;
-    
-    return parseInt((coinResource.data as { coin: { value: string } }).coin.value, 10);
+    // Use aptos-x402 utility
+    return getAccountFromPrivateKey(privateKeyHex);
   } catch {
-    return 0;
+    // Fallback to direct creation if aptos-x402 format differs
+    const cleanKey = privateKeyHex.startsWith("0x") 
+      ? privateKeyHex.slice(2) 
+      : privateKeyHex;
+    const privateKey = new Ed25519PrivateKey(cleanKey);
+    return Account.fromPrivateKey({ privateKey });
   }
 }
 
 /**
- * Transfer APT tokens directly (without facilitator)
+ * Get account balance using aptos-x402 utility
+ */
+export async function getBalance(address: string): Promise<number> {
+  try {
+    const balance = await getAccountBalance(aptos, address);
+    return parseInt(balance, 10);
+  } catch {
+    // Fallback: try direct API call
+    try {
+      const resources = await aptos.getAccountResources({
+        accountAddress: AccountAddress.from(address),
+      });
+      
+      const coinResource = resources.find(
+        (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
+      );
+      
+      if (!coinResource) return 0;
+      
+      return parseInt((coinResource.data as { coin: { value: string } }).coin.value, 10);
+    } catch {
+      return 0;
+    }
+  }
+}
+
+/**
+ * Transfer APT tokens directly using aptos-x402 utility
  */
 export async function transfer(
   sender: Account,
   recipient: string,
   amount: number
 ): Promise<PaymentReceipt> {
-  const transaction = await aptos.transaction.build.simple({
-    sender: sender.accountAddress,
-    data: {
-      function: "0x1::aptos_account::transfer",
-      functionArguments: [AccountAddress.from(recipient), amount],
-    },
-  });
+  try {
+    // Use aptos-x402 signAndSubmitPayment
+    const txHash = await signAndSubmitPayment(
+      aptos,
+      sender,
+      recipient,
+      amount.toString()
+    );
 
-  const pendingTx = await aptos.signAndSubmitTransaction({
-    signer: sender,
-    transaction,
-  });
-
-  const executedTx = await aptos.waitForTransaction({
-    transactionHash: pendingTx.hash,
-  });
-
-  return {
-    txHash: pendingTx.hash,
-    from: sender.accountAddress.toString(),
-    to: recipient,
-    amount,
-    timestamp: Date.now(),
-    status: executedTx.success ? "confirmed" : "failed",
-  };
+    return {
+      txHash,
+      from: sender.accountAddress.toString(),
+      to: recipient,
+      amount,
+      timestamp: Date.now(),
+      status: "confirmed",
+    };
+  } catch (error) {
+    console.error("[x402] Transfer failed:", error);
+    throw error;
+  }
 }
 
 /**
- * Submit payment through x402 facilitator
+ * Submit payment through x402 facilitator (for HTTP 402 protocol)
+ * This is for API payment scenarios, not direct game transfers
  */
 export async function submitToFacilitator(
   request: FacilitatorPaymentRequest
@@ -175,7 +204,8 @@ export async function submitToFacilitator(
 }
 
 /**
- * Create a payment for game buy-in using facilitator
+ * Create a payment for game buy-in
+ * Uses direct transfer for reliability
  */
 export async function createBuyInPayment(
   agent: Account,
@@ -185,33 +215,13 @@ export async function createBuyInPayment(
 ): Promise<PaymentReceipt> {
   console.log(`[x402] Creating buy-in payment: ${amount} to ${escrowAddress} for game ${gameId}`);
   
-  // Try facilitator first
-  const facilitatorResponse = await submitToFacilitator({
-    from: agent.accountAddress.toString(),
-    to: escrowAddress,
-    amount,
-    memo: `buy_in:${gameId}`,
-  });
-
-  if (facilitatorResponse.success && facilitatorResponse.receipt) {
-    return {
-      txHash: facilitatorResponse.txHash || facilitatorResponse.receipt.txHash,
-      from: agent.accountAddress.toString(),
-      to: escrowAddress,
-      amount,
-      timestamp: Date.now(),
-      facilitatorSignature: facilitatorResponse.receipt.signature,
-      status: "confirmed",
-    };
-  }
-
-  // Fallback to direct transfer
-  console.log(`[x402] Facilitator unavailable, using direct transfer`);
+  // Use direct transfer for game buy-ins (more reliable)
   return transfer(agent, escrowAddress, amount);
 }
 
 /**
- * Create a payment for a bet using facilitator
+ * Create a payment for a bet
+ * Uses direct transfer for speed and reliability
  */
 export async function createBetPayment(
   agent: Account,
@@ -222,27 +232,7 @@ export async function createBetPayment(
 ): Promise<PaymentReceipt> {
   console.log(`[x402] Creating bet payment: ${amount} for ${action} in game ${gameId}`);
   
-  // Try facilitator for micropayments
-  const facilitatorResponse = await submitToFacilitator({
-    from: agent.accountAddress.toString(),
-    to: potAddress,
-    amount,
-    memo: `bet:${gameId}:${action}`,
-  });
-
-  if (facilitatorResponse.success && facilitatorResponse.receipt) {
-    return {
-      txHash: facilitatorResponse.txHash || facilitatorResponse.receipt.txHash,
-      from: agent.accountAddress.toString(),
-      to: potAddress,
-      amount,
-      timestamp: Date.now(),
-      facilitatorSignature: facilitatorResponse.receipt.signature,
-      status: "confirmed",
-    };
-  }
-
-  // Fallback to direct transfer
+  // Use direct transfer for bets
   return transfer(agent, potAddress, amount);
 }
 
@@ -299,19 +289,65 @@ export async function distributePot(
 }
 
 /**
- * Fund an agent wallet from faucet (testnet only)
+ * Fund an agent wallet from faucet
+ * 
+ * IMPORTANT: 
+ * - DEVNET faucet works programmatically via API
+ * - TESTNET faucet requires manual authentication at https://aptos.dev/en/network/faucet
  */
 export async function fundFromFaucet(address: string, amount = 100_000_000): Promise<void> {
-  if (process.env.APTOS_NETWORK !== "testnet" && process.env.APTOS_NETWORK !== "devnet") {
+  if (network !== "testnet" && network !== "devnet") {
     throw new Error("Faucet only available on testnet/devnet");
   }
   
-  await aptos.fundAccount({
-    accountAddress: AccountAddress.from(address),
-    amount,
-  });
+  // Clean the address
+  const cleanAddress = address.startsWith("0x") ? address : `0x${address}`;
   
-  console.log(`[x402] Funded ${address} with ${amount} octas from faucet`);
+  // Testnet requires manual authentication
+  if (network === "testnet") {
+    console.log(`[x402] Testnet faucet requires manual authentication`);
+    
+    // Try anyway in case it works
+    const faucetUrl = "https://faucet.testnet.aptoslabs.com";
+    try {
+      const response = await fetch(`${faucetUrl}/mint?amount=${amount}&address=${cleanAddress}`, {
+        method: "POST",
+      });
+      
+      if (response.ok) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log(`[x402] Funded ${address} with ${amount} octas from faucet`);
+        return;
+      }
+    } catch {
+      // Expected to fail for testnet
+    }
+    
+    throw new Error(
+      `Testnet faucet requires manual authentication. ` +
+      `Please visit https://aptos.dev/en/network/faucet or fund via wallet transfer.`
+    );
+  }
+  
+  // Devnet faucet works programmatically
+  const faucetUrl = "https://faucet.devnet.aptoslabs.com";
+  
+  try {
+    const response = await fetch(`${faucetUrl}/mint?amount=${amount}&address=${cleanAddress}`, {
+      method: "POST",
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Faucet request failed: ${response.status} - ${errorText}`);
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log(`[x402] Funded ${address} with ${amount} octas from faucet`);
+  } catch (error) {
+    console.error(`[x402] Faucet error for ${address}:`, error);
+    throw error;
+  }
 }
 
 /**
@@ -325,7 +361,6 @@ export async function getTransaction(txHash: string) {
  * Get Aptos explorer URL for a transaction
  */
 export function getExplorerUrl(txHash: string): string {
-  const network = process.env.APTOS_NETWORK || "testnet";
   return `https://explorer.aptoslabs.com/txn/${txHash}?network=${network}`;
 }
 
@@ -345,5 +380,15 @@ export function getFacilitatorUrl(): string {
   return X402_FACILITATOR_URL;
 }
 
+/**
+ * Get current network
+ */
+export function getNetwork(): string {
+  return network;
+}
+
 // Export the Aptos client for direct access if needed
-export { aptos, config };
+export { aptos };
+
+// Re-export x402axios for use in client components that need to pay for APIs
+export { x402axios } from "aptos-x402";

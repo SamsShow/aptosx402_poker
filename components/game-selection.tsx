@@ -4,6 +4,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/connect-wallet-button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { formatAddress } from "@/lib/utils";
 import { 
@@ -15,7 +21,9 @@ import {
   Loader2,
   Gamepad2,
   User,
-  Bot
+  Bot,
+  Wallet,
+  HelpCircle
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -54,6 +62,9 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   
   // Wallet connection
   const { connected, account } = useWallet();
+  
+  // Default game settings
+  const DEFAULT_BUY_IN = 1000;
 
   // Silent fetch that updates games without loading state
   const fetchGames = useCallback(async (showRefreshIndicator = false) => {
@@ -113,11 +124,18 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
       const creatorAddress = connected ? account?.address?.toString() : undefined;
       const gameId = await onCreateGame(creatorAddress);
       if (gameId) {
+        // Go directly to the game - funding can be done in-game
         onSelectGame(gameId);
       }
     } finally {
       setCreating(false);
     }
+  };
+
+  // Handle joining a game - go directly to it
+  const handleJoinGame = (gameId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    onSelectGame(gameId);
   };
 
   // Manual refresh with indicator
@@ -274,8 +292,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
             {games.map((game, index) => (
               <motion.div
                 key={game.gameId}
-                className="comic-card p-6 hover:translate-x-1 hover:-translate-y-1 transition-transform cursor-pointer"
-                onClick={() => onSelectGame(game.gameId)}
+                className="comic-card p-6 hover:translate-x-1 hover:-translate-y-1 transition-transform"
                 initial={false}
                 animate={{ opacity: 1 }}
               >
@@ -303,26 +320,73 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                   </div>
                   
                   <div className="flex items-center gap-4">
-                    {/* Stage badge */}
-                    <div className={`comic-badge ${getStageColor(game.stage)} text-white px-3 py-1`}>
-                      {formatStage(game.stage)}
-                    </div>
+                    {/* Stage badge with tooltip */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className={`comic-badge ${getStageColor(game.stage)} text-white px-3 py-1 cursor-help`}>
+                            {formatStage(game.stage)}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-[200px]">
+                          <p className="font-bold">Betting Round</p>
+                          <p className="text-xs text-muted-foreground">
+                            {game.stage === "waiting" && "Game hasn't started yet"}
+                            {game.stage === "preflop" && "First betting round before community cards"}
+                            {game.stage === "flop" && "Second round after 3 community cards"}
+                            {game.stage === "turn" && "Third round after 4th community card"}
+                            {game.stage === "river" && "Final round after 5th community card"}
+                            {game.stage === "showdown" && "Cards revealed, determining winner"}
+                            {game.stage === "settled" && "Hand complete, pot distributed"}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     
-                    {/* Pot */}
-                    <div className="flex items-center gap-2 bg-comic-yellow px-4 py-2 comic-border">
-                      <Coins className="h-4 w-4" />
-                      <span className="font-comic">${game.pot}</span>
-                    </div>
+                    {/* Pot with tooltip */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 bg-comic-yellow px-4 py-2 comic-border cursor-help">
+                            <Coins className="h-4 w-4" />
+                            <span className="font-comic">${game.pot}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p className="font-bold">Current Pot</p>
+                          <p className="text-xs text-muted-foreground">
+                            Total chips bet by all players in this hand
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     
-                    {/* Players count */}
-                    <div className="flex items-center gap-2 bg-muted px-4 py-2 comic-border">
-                      <Users className="h-4 w-4" />
-                      <span className="font-bold">{game.playerCount}</span>
-                    </div>
+                    {/* Players count with tooltip */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 bg-muted px-4 py-2 comic-border cursor-help">
+                            <Users className="h-4 w-4" />
+                            <span className="font-bold">{game.playerCount}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p className="font-bold">Players</p>
+                          <p className="text-xs text-muted-foreground">
+                            Number of AI agents in this game
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     
-                    <Button variant="poker" size="sm" className="gap-2">
+                    <Button 
+                      variant="poker" 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={(e) => handleJoinGame(game.gameId, e)}
+                    >
                       <Play className="h-4 w-4" />
-                      JOIN
+                      {game.stage === "waiting" ? "JOIN" : "WATCH"}
                     </Button>
                   </div>
                 </div>
@@ -330,17 +394,49 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                 {/* Player chips summary */}
                 {game.players && game.players.length > 0 && (
                   <div className="mt-4 pt-4 border-t-2 border-foreground">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold text-muted-foreground">PLAYER STACKS</span>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-[220px]">
+                            <p className="font-bold">Player Chip Stacks</p>
+                            <p className="text-xs text-muted-foreground">
+                              Each player&apos;s remaining chips. Grayed out players have folded this hand.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {game.players.map((player) => (
-                        <div
-                          key={player.id}
-                          className={`text-xs px-3 py-1 border-2 border-foreground ${
-                            player.folded ? "bg-muted text-muted-foreground" : "bg-white"
-                          }`}
-                        >
-                          <span className="font-bold">{player.name}</span>
-                          <span className="ml-2 text-comic-green">${player.stack}</span>
-                        </div>
+                        <TooltipProvider key={player.id}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div
+                                className={`text-xs px-3 py-1 border-2 border-foreground cursor-help ${
+                                  player.folded ? "bg-muted text-muted-foreground line-through" : "bg-white"
+                                }`}
+                              >
+                                <span className="font-bold">{player.name}</span>
+                                <span className={`ml-2 ${player.folded ? "text-muted-foreground" : "text-comic-green"}`}>
+                                  ${player.stack}
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p className="font-bold">{player.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {player.folded 
+                                  ? "Folded this hand" 
+                                  : `${player.stack} chips remaining`
+                                }
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ))}
                     </div>
                   </div>
@@ -349,6 +445,22 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
             ))}
           </div>
         )}
+        
+        {/* Info banner about funding */}
+        <div className="mt-8 p-4 comic-card bg-comic-yellow/10 border-comic-yellow">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-comic-yellow comic-border flex items-center justify-center flex-shrink-0">
+              <Wallet className="h-5 w-5 text-foreground" />
+            </div>
+            <div>
+              <h3 className="font-bold mb-1">Agent Sponsorship</h3>
+              <p className="text-sm text-muted-foreground">
+                You can sponsor AI agents directly from the game screen! All sponsorships are tracked and attributed to your wallet address. 
+                Fund agents to help them compete, or watch them play with existing funds.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -99,6 +99,29 @@ export const agentStats = pgTable("agent_stats", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Sponsorships table - tracks who funded which agent
+export const sponsorships = pgTable("sponsorships", {
+  id: text("id").primaryKey(),
+  sponsorAddress: text("sponsor_address").notNull(), // Wallet address of sponsor
+  agentId: text("agent_id").notNull(), // Agent being funded
+  amount: bigint("amount", { mode: "number" }).notNull(), // Amount in octas
+  txHash: text("tx_hash"), // On-chain transaction hash if applicable
+  gameId: text("game_id"), // Optional: if funded for a specific game
+  status: text("status").notNull().default("confirmed"), // pending, confirmed, refunded
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Sponsor totals (aggregated view per sponsor-agent pair)
+export const sponsorTotals = pgTable("sponsor_totals", {
+  id: text("id").primaryKey(), // Composite: sponsorAddress_agentId
+  sponsorAddress: text("sponsor_address").notNull(),
+  agentId: text("agent_id").notNull(),
+  totalAmount: bigint("total_amount", { mode: "number" }).notNull().default(0),
+  contributionCount: integer("contribution_count").notNull().default(0),
+  firstContribution: timestamp("first_contribution").notNull().defaultNow(),
+  lastContribution: timestamp("last_contribution").notNull().defaultNow(),
+});
+
 // Type exports
 export type Game = typeof games.$inferSelect;
 export type NewGame = typeof games.$inferInsert;
@@ -114,3 +137,7 @@ export type Transaction = typeof transactions.$inferSelect;
 export type NewTransaction = typeof transactions.$inferInsert;
 export type AgentStat = typeof agentStats.$inferSelect;
 export type NewAgentStat = typeof agentStats.$inferInsert;
+export type Sponsorship = typeof sponsorships.$inferSelect;
+export type NewSponsorship = typeof sponsorships.$inferInsert;
+export type SponsorTotal = typeof sponsorTotals.$inferSelect;
+export type NewSponsorTotal = typeof sponsorTotals.$inferInsert;

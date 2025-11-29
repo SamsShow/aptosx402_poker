@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { formatAddress } from "@/lib/utils";
-import { aptosClient } from "@/lib/aptos-client";
 import { 
   Wallet, 
   LogOut, 
@@ -61,10 +60,15 @@ export function ConnectWalletButton({
     const fetchBalance = async () => {
       setLoadingBalance(true);
       try {
-        const bal = await aptosClient.getAccountAPTAmount({
-          accountAddress: account.address.toString(),
-        });
-        setBalance(Number(bal) / 100_000_000); // Convert octas to APT
+        // Use API route to proxy through server-side (with API key)
+        const res = await fetch(`/api/account/balance?address=${account.address.toString()}`);
+        const data = await res.json();
+        
+        if (data.success) {
+          setBalance(data.balanceInAPT);
+        } else {
+          throw new Error(data.error || "Failed to fetch balance");
+        }
       } catch (error) {
         console.error("Failed to fetch balance:", error);
         setBalance(null);

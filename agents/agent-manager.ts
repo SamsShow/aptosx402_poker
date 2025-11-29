@@ -2,22 +2,31 @@
  * Agent Manager
  * 
  * Manages all poker agents and coordinates their actions
+ * Stats are persisted to database for durability
  */
 
 import type { GameState, ThoughtRecord, AgentModel } from "@/types";
 import { BasePokerAgent, createAgent } from "./base";
 import { AGENT_CONFIGS } from "@/types/agents";
+import { 
+  getAllAgentStatsFromDB, 
+  recordAgentHandResult, 
+  initializeAgentStats,
+  type AgentStatsData 
+} from "@/lib/db/agent-stats-db";
 
 interface AgentInstance {
   agent: BasePokerAgent;
   isActive: boolean;
   lastThought?: ThoughtRecord;
-  totalHands: number;
-  wins: number;
+  // Stats are now loaded from database, cached here for quick access
+  cachedStats?: AgentStatsData;
 }
 
 class AgentManager {
   private agents: Map<string, AgentInstance> = new Map();
+  private statsCache: Record<string, AgentStatsData> = {};
+  private statsLoaded = false;
   
   /**
    * Initialize all agents
@@ -30,11 +39,31 @@ class AgentManager {
       this.agents.set(agent.id, {
         agent,
         isActive: true,
-        totalHands: 0,
-        wins: 0,
       });
       
       console.log(`[AgentManager] Initialized agent: ${agent.name} (${agent.model})`);
+    }
+    
+    // Load stats from database asynchronously
+    this.loadStatsFromDB();
+  }
+  
+  /**
+   * Load stats from database
+   */
+  private async loadStatsFromDB(): Promise<void> {
+    try {
+      // Initialize stats for all agents in database
+      for (const agentId of Array.from(this.agents.keys())) {
+        await initializeAgentStats(agentId);
+      }
+      
+      // Load all stats
+      this.statsCache = await getAllAgentStatsFromDB();
+      this.statsLoaded = true;
+      console.log("[AgentManager] Loaded stats from database");
+    } catch (error) {
+      console.error("[AgentManager] Error loading stats from DB:", error);
     }
   }
   
@@ -88,47 +117,86 @@ class AgentManager {
   }
   
   /**
-   * Record a hand result for an agent
+   * Record a hand result for an agent (persists to database)
    */
-  recordResult(agentId: string, won: boolean): void {
+  async recordResult(agentId: string, won: boolean, potWon: number = 0): Promise<void> {
     const instance = this.agents.get(agentId);
-    if (instance) {
-      instance.totalHands++;
-      if (won) {
-        instance.wins++;
-      }
+    if (!instance) return;
+    
+    try {
+      // Persist to database
+      await recordAgentHandResult(agentId, won, potWon);
+      
+      // Update cache
+      const currentStats = this.statsCache[agentId] || {
+        agentId,
+        totalHands: 0,
+        wins: 0,
+        winRate: 0,
+        totalWinnings: 0,
+        biggestPot: 0,
+      };
+      
+      this.statsCache[agentId] = {
+        ...currentStats,
+        totalHands: currentStats.totalHands + 1,
+        wins: currentStats.wins + (won ? 1 : 0),
+        winRate: (currentStats.wins + (won ? 1 : 0)) / (currentStats.totalHands + 1),
+        totalWinnings: currentStats.totalWinnings + potWon,
+        biggestPot: Math.max(currentStats.biggestPot, potWon),
+      };
+      
+      console.log(`[AgentManager] Recorded result for ${agentId}: won=${won}, pot=${potWon}`);
+    } catch (error) {
+      console.error(`[AgentManager] Error recording result for ${agentId}:`, error);
     }
   }
   
   /**
-   * Get agent statistics
+   * Get agent statistics (from database cache)
    */
   getStats(agentId: string): { totalHands: number; wins: number; winRate: number } | null {
     const instance = this.agents.get(agentId);
     if (!instance) return null;
     
+    const stats = this.statsCache[agentId];
+    if (!stats) {
+      return { totalHands: 0, wins: 0, winRate: 0 };
+    }
+    
     return {
-      totalHands: instance.totalHands,
-      wins: instance.wins,
-      winRate: instance.totalHands > 0 ? instance.wins / instance.totalHands : 0,
+      totalHands: stats.totalHands,
+      wins: stats.wins,
+      winRate: stats.winRate,
     };
   }
   
   /**
-   * Get all agent statistics
+   * Get all agent statistics (from database cache)
    */
   getAllStats(): Record<string, { totalHands: number; wins: number; winRate: number }> {
     const stats: Record<string, { totalHands: number; wins: number; winRate: number }> = {};
     
-    for (const [agentId, instance] of Array.from(this.agents.entries())) {
-      stats[agentId] = {
-        totalHands: instance.totalHands,
-        wins: instance.wins,
-        winRate: instance.totalHands > 0 ? instance.wins / instance.totalHands : 0,
-      };
+    for (const [agentId] of Array.from(this.agents.entries())) {
+      const cachedStats = this.statsCache[agentId];
+      stats[agentId] = cachedStats 
+        ? { totalHands: cachedStats.totalHands, wins: cachedStats.wins, winRate: cachedStats.winRate }
+        : { totalHands: 0, wins: 0, winRate: 0 };
     }
     
     return stats;
+  }
+  
+  /**
+   * Refresh stats from database
+   */
+  async refreshStats(): Promise<void> {
+    try {
+      this.statsCache = await getAllAgentStatsFromDB();
+      console.log("[AgentManager] Refreshed stats from database");
+    } catch (error) {
+      console.error("[AgentManager] Error refreshing stats:", error);
+    }
   }
   
   /**
@@ -142,12 +210,16 @@ class AgentManager {
   }
   
   /**
-   * Reset agent statistics
+   * Reset agent statistics (clears database and cache)
    */
-  resetStats(): void {
-    for (const instance of Array.from(this.agents.values())) {
-      instance.totalHands = 0;
-      instance.wins = 0;
+  async resetStats(): Promise<void> {
+    try {
+      const { resetAllAgentStats } = await import("@/lib/db/agent-stats-db");
+      await resetAllAgentStats();
+      this.statsCache = {};
+      console.log("[AgentManager] Reset all stats");
+    } catch (error) {
+      console.error("[AgentManager] Error resetting stats:", error);
     }
   }
 }

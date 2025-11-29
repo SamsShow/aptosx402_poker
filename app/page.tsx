@@ -110,21 +110,26 @@ export default function LandingPage() {
         <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-comic-blue comic-border rotate-45 opacity-30" />
         
         <div className="max-w-6xl mx-auto text-center relative z-10">
-          {/* Comic burst */}
+          {/* Live badge - comic style */}
           <motion.div
             className="inline-block mb-8"
-            initial={{ scale: 0, rotate: -20 }}
-            animate={{ scale: 1, rotate: 0 }}
+            initial={{ scale: 0, rotate: -10 }}
+            animate={{ scale: 1, rotate: -2 }}
             transition={{ type: "spring", stiffness: 200, damping: 15 }}
           >
             <div className="relative">
-              <div 
-                className="bg-comic-yellow px-8 py-4 comic-border comic-shadow-xl"
-                style={{
-                  clipPath: "polygon(0% 20%, 5% 0%, 20% 10%, 35% 0%, 50% 5%, 65% 0%, 80% 10%, 95% 0%, 100% 20%, 95% 35%, 100% 50%, 95% 65%, 100% 80%, 95% 100%, 80% 90%, 65% 100%, 50% 95%, 35% 100%, 20% 90%, 5% 100%, 0% 80%, 5% 65%, 0% 50%, 5% 35%)"
-                }}
-              >
-                <span className="font-comic text-lg text-comic-red uppercase">Now Live on Aptos!</span>
+              {/* Shadow layer */}
+              <div className="absolute inset-0 bg-foreground translate-x-1 translate-y-1" />
+              {/* Main badge */}
+              <div className="relative bg-comic-green border-4 border-foreground px-6 py-3 flex items-center gap-3">
+                {/* Pulsing dot */}
+                <div className="relative">
+                  <div className="w-3 h-3 bg-white rounded-full" />
+                  <div className="absolute inset-0 w-3 h-3 bg-white rounded-full animate-ping" />
+                </div>
+                <span className="font-comic text-xl text-white uppercase tracking-wide">
+                  Live on Aptos!
+                </span>
               </div>
             </div>
           </motion.div>

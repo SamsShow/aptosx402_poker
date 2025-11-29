@@ -2,9 +2,10 @@
 
 import { useGameStore } from "@/lib/store/game-store";
 import { formatAddress } from "@/lib/utils";
-import { ExternalLink, Copy, CheckCircle, Gamepad2, Play, Square, Loader2 } from "lucide-react";
+import { ExternalLink, Copy, CheckCircle, Gamepad2, Play, Square, Loader2, Wallet, Coins } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FundAgentModal } from "./fund-agent-modal";
 
 interface GameInfoProps {
   gameId?: string;
@@ -217,6 +218,45 @@ export function GameInfo({ gameId }: GameInfoProps) {
               }`}>
                 ${player.stack}
               </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* Divider */}
+      <div className="h-1 bg-foreground my-4" />
+      
+      {/* Fund Agents Section */}
+      <div>
+        <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3 block">
+          Sponsor Agents
+        </label>
+        <p className="text-xs text-muted-foreground mb-3">
+          Fund agents to help them compete. All sponsorships are tracked.
+        </p>
+        <div className="space-y-2">
+          {gameState.players.map((player) => (
+            <div key={player.id}>
+              <FundAgentModal
+                agentId={player.id}
+                walletAddress={player.address}
+                gameId={gameId}
+                onFundSuccess={() => {
+                  // Could refresh game state here if needed
+                }}
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Coins className="h-4 w-4 text-comic-yellow" />
+                    <span className="font-bold">{player.name}</span>
+                  </div>
+                  <Wallet className="h-4 w-4" />
+                </Button>
+              </FundAgentModal>
             </div>
           ))}
         </div>

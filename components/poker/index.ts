@@ -13,4 +13,5 @@ export { ThoughtFeed } from "./thought-feed";
 export { TransactionFeed } from "./transaction-feed";
 export { FundAgentModal, AgentFundingCard } from "./fund-agent-modal";
 export { ReplayControls } from "./replay-controls";
+export { PreGameFundingModal } from "./pre-game-funding";
 
