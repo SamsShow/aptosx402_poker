@@ -14,16 +14,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
 import { AGENT_CONFIGS } from "@/types/agents";
 import type { AgentModel } from "@/types";
 import { cn, formatAddress } from "@/lib/utils";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { 
   Copy, 
   CheckCircle, 
   Wallet, 
   ExternalLink,
   Coins,
-  Loader2
+  Loader2,
+  Send,
+  AlertCircle
 } from "lucide-react";
 
 interface FundAgentModalProps {
@@ -41,7 +45,14 @@ export function FundAgentModal({
 }: FundAgentModalProps) {
   const [copied, setCopied] = useState(false);
   const [funding, setFunding] = useState(false);
+  const [transferring, setTransferring] = useState(false);
+  const [transferAmount, setTransferAmount] = useState(0.1); // Default 0.1 APT
+  const [transferSuccess, setTransferSuccess] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  
+  // Wallet connection
+  const { connected, account, signAndSubmitTransaction } = useWallet();
   
   const model = agentId.replace("agent_", "") as AgentModel;
   const config = AGENT_CONFIGS[model];
@@ -64,6 +75,42 @@ export function FundAgentModal({
       console.error("Failed to fund:", error);
     } finally {
       setFunding(false);
+    }
+  };
+  
+  // Transfer APT from connected wallet to agent
+  const handleTransferFromWallet = async () => {
+    if (!connected || !walletAddress || !signAndSubmitTransaction) return;
+    
+    setTransferring(true);
+    setTransferError(null);
+    setTransferSuccess(false);
+    
+    try {
+      // Convert APT to octas (1 APT = 100,000,000 octas)
+      const amountInOctas = Math.floor(transferAmount * 100_000_000);
+      
+      // Submit APT transfer transaction
+      const response = await signAndSubmitTransaction({
+        data: {
+          function: "0x1::aptos_account::transfer",
+          functionArguments: [walletAddress, amountInOctas],
+        },
+      });
+      
+      console.log("Transfer transaction submitted:", response);
+      setTransferSuccess(true);
+      
+      // Reset after success
+      setTimeout(() => {
+        setTransferSuccess(false);
+      }, 3000);
+      
+    } catch (error) {
+      console.error("Failed to transfer:", error);
+      setTransferError(error instanceof Error ? error.message : "Transfer failed");
+    } finally {
+      setTransferring(false);
     }
   };
   
@@ -110,9 +157,81 @@ export function FundAgentModal({
           
           <Separator />
           
+          {/* Transfer from connected wallet */}
+          {connected ? (
+            <div className="space-y-3">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Send className="h-4 w-4" />
+                Send from Your Wallet
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Transfer APT directly from your connected wallet
+              </p>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Amount:</span>
+                  <span className="font-bold text-comic-green">{transferAmount.toFixed(2)} APT</span>
+                </div>
+                <Slider
+                  value={[transferAmount]}
+                  onValueChange={(value) => setTransferAmount(value[0])}
+                  min={0.01}
+                  max={5}
+                  step={0.01}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>0.01 APT</span>
+                  <span>5 APT</span>
+                </div>
+              </div>
+              
+              {transferError && (
+                <div className="flex items-center gap-2 p-2 bg-comic-red/10 rounded-lg text-sm text-comic-red">
+                  <AlertCircle className="h-4 w-4" />
+                  {transferError}
+                </div>
+              )}
+              
+              {transferSuccess && (
+                <div className="flex items-center gap-2 p-2 bg-comic-green/10 rounded-lg text-sm text-comic-green">
+                  <CheckCircle className="h-4 w-4" />
+                  Transfer successful!
+                </div>
+              )}
+              
+              <Button
+                className="w-full gap-2"
+                variant="poker"
+                onClick={handleTransferFromWallet}
+                disabled={transferring || !walletAddress}
+              >
+                {transferring ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {transferring ? "Transferring..." : `Send ${transferAmount.toFixed(2)} APT`}
+              </Button>
+            </div>
+          ) : (
+            <div className="p-4 bg-muted/50 rounded-lg text-center">
+              <Wallet className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground mb-2">
+                Connect your wallet to fund agents directly
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Use the &quot;Connect Wallet&quot; button in the header
+              </p>
+            </div>
+          )}
+          
+          <Separator />
+          
           {/* Wallet address */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Wallet Address</label>
+            <label className="text-sm font-medium">Agent Wallet Address</label>
             <div className="flex items-center gap-2">
               <code className="flex-1 p-3 bg-muted rounded-lg text-xs font-mono break-all">
                 {walletAddress || "Loading..."}
@@ -131,7 +250,7 @@ export function FundAgentModal({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Send APT to this address to fund the agent
+              Or send APT to this address manually
             </p>
           </div>
           
@@ -145,6 +264,7 @@ export function FundAgentModal({
             </p>
             <Button
               className="w-full gap-2"
+              variant="outline"
               onClick={handleFundFromFaucet}
               disabled={funding || !walletAddress}
             >

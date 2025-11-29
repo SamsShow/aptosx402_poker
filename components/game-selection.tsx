@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { ConnectWalletButton } from "@/components/connect-wallet-button";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { formatAddress } from "@/lib/utils";
 import { 
   Play, 
   Plus, 
@@ -10,7 +13,8 @@ import {
   Users, 
   Coins,
   Loader2,
-  Gamepad2
+  Gamepad2,
+  User
 } from "lucide-react";
 
 interface GameSummary {
@@ -20,6 +24,7 @@ interface GameSummary {
   pot: number;
   handNumber: number;
   createdAt?: number;
+  creatorAddress?: string;
   players: {
     id: string;
     name: string;
@@ -30,7 +35,7 @@ interface GameSummary {
 
 interface GameSelectionProps {
   onSelectGame: (gameId: string) => void;
-  onCreateGame: () => Promise<string | null>;
+  onCreateGame: (creatorAddress?: string) => Promise<string | null>;
 }
 
 // Maximum games to display in the lobby
@@ -43,6 +48,9 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isMounted = useRef(true);
+  
+  // Wallet connection
+  const { connected, account } = useWallet();
 
   // Silent fetch that updates games without loading state
   const fetchGames = useCallback(async (showRefreshIndicator = false) => {
@@ -98,7 +106,9 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   const handleCreateGame = async () => {
     setCreating(true);
     try {
-      const gameId = await onCreateGame();
+      // Pass connected wallet address as creator
+      const creatorAddress = connected ? account?.address?.toString() : undefined;
+      const gameId = await onCreateGame(creatorAddress);
       if (gameId) {
         onSelectGame(gameId);
       }
@@ -147,10 +157,14 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
         >
-          <div className="flex items-center justify-center gap-4 mb-4">
-            <div className="w-16 h-16 bg-comic-blue comic-border flex items-center justify-center font-comic text-white text-2xl comic-shadow">
-              x402
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-16" /> {/* Spacer for centering */}
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-comic-blue comic-border flex items-center justify-center font-comic text-white text-2xl comic-shadow">
+                x402
+              </div>
             </div>
+            <ConnectWalletButton />
           </div>
           <h1 className="font-comic text-5xl mb-2">GAME LOBBY</h1>
           <p className="text-muted-foreground font-bold">
@@ -262,6 +276,14 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                       <p className="text-sm text-muted-foreground font-bold">
                         Hand #{game.handNumber} • {game.playerCount} players
                       </p>
+                      {game.creatorAddress && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                          <User className="h-3 w-3" />
+                          <span className="font-mono">
+                            Created by {formatAddress(game.creatorAddress, 4)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   

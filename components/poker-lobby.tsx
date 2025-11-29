@@ -6,6 +6,7 @@ import { ThoughtFeed } from "./poker/thought-feed";
 import { TransactionFeed } from "./poker/transaction-feed";
 import { GameInfo } from "./poker/game-info";
 import { GameSelection } from "./game-selection";
+import { ConnectWalletButton } from "./connect-wallet-button";
 import { useGameStore } from "@/lib/store/game-store";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,7 +74,7 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
   }, [selectedGameId, fetchGame]);
 
   // Create a new game
-  const createGame = async (): Promise<string | null> => {
+  const createGame = async (creatorAddress?: string): Promise<string | null> => {
     setLoading(true);
     try {
       const res = await fetch("/api/game", {
@@ -83,6 +84,7 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
           buyIn: 1000,
           smallBlind: 5,
           bigBlind: 10,
+          creatorAddress,
         }),
       });
       const data = await res.json();
@@ -165,6 +167,7 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
               {gameState ? "LIVE" : "CONNECTING..."}
             </span>
           </div>
+          <ConnectWalletButton />
         </div>
       </header>
 

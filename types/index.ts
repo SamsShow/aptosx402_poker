@@ -52,6 +52,7 @@ export interface GameState {
   handNumber: number;
   createdAt: number;
   updatedAt: number;
+  creatorAddress?: string; // Wallet address of game creator
 }
 
 // Agent types

@@ -55,7 +55,18 @@ class GameCoordinator {
   /**
    * Register a new game
    */
-  async registerGame(state: GameState, buyIn = 1000, smallBlind = 5, bigBlind = 10): Promise<void> {
+  async registerGame(
+    state: GameState, 
+    buyIn = 1000, 
+    smallBlind = 5, 
+    bigBlind = 10,
+    creatorAddress?: string
+  ): Promise<void> {
+    // Add creatorAddress to state if provided
+    if (creatorAddress) {
+      state.creatorAddress = creatorAddress;
+    }
+    
     this.games.set(state.gameId, {
       state,
       thoughts: [],
@@ -69,7 +80,7 @@ class GameCoordinator {
     
     // Save to database
     try {
-      await saveGame(state, buyIn, smallBlind, bigBlind);
+      await saveGame(state, buyIn, smallBlind, bigBlind, creatorAddress);
       console.log(`[Coordinator] Game ${state.gameId} saved to database`);
     } catch (error) {
       console.error("[Coordinator] Failed to save game to DB:", error);

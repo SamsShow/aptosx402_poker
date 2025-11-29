@@ -15,7 +15,7 @@ import { getAllGamesFromDB } from "@/lib/db/game-db";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { buyIn = 1000, smallBlind = 5, bigBlind = 10, agentIds } = body;
+    const { buyIn = 1000, smallBlind = 5, bigBlind = 10, agentIds, creatorAddress } = body;
     
     // Ensure wallet manager is initialized to get real wallet addresses
     if (!walletManager.isInitialized()) {
@@ -49,8 +49,8 @@ export async function POST(request: NextRequest) {
     // Create game state
     const gameState = createGame(players, { buyIn, smallBlind, bigBlind });
     
-    // Register with coordinator (saves to database)
-    await gameCoordinator.registerGame(gameState, buyIn, smallBlind, bigBlind);
+    // Register with coordinator (saves to database with creator address)
+    await gameCoordinator.registerGame(gameState, buyIn, smallBlind, bigBlind, creatorAddress);
     
     return NextResponse.json({
       success: true,
@@ -110,6 +110,7 @@ export async function GET(request: NextRequest) {
         handNumber: g.handNumber || 0,
         createdAt: g.createdAt,
         updatedAt: g.updatedAt,
+        creatorAddress: g.creatorAddress,
         players: (g.players || []).map((p) => ({
           id: p.id,
           name: p.name,

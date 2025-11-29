@@ -18,6 +18,7 @@ export const games = pgTable("games", {
   handNumber: integer("hand_number").notNull().default(0),
   totalHands: integer("total_hands").notNull().default(0),
   winnerId: text("winner_id"),
+  creatorAddress: text("creator_address"), // Wallet address of game creator
   gameState: jsonb("game_state"), // Full GameState for persistence
 });
 

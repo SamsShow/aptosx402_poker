@@ -11,7 +11,13 @@ import type { GameState, ThoughtRecord, TransactionRecord } from "@/types";
 /**
  * Save or update a game in the database
  */
-export async function saveGame(gameState: GameState, buyIn: number, smallBlind: number, bigBlind: number): Promise<void> {
+export async function saveGame(
+  gameState: GameState, 
+  buyIn: number, 
+  smallBlind: number, 
+  bigBlind: number,
+  creatorAddress?: string
+): Promise<void> {
   await db
     .insert(games)
     .values({
@@ -23,6 +29,7 @@ export async function saveGame(gameState: GameState, buyIn: number, smallBlind: 
       handNumber: gameState.handNumber,
       totalHands: gameState.handNumber,
       updatedAt: new Date(),
+      creatorAddress: creatorAddress || gameState.creatorAddress || null,
       gameState: gameState as unknown as Record<string, unknown>, // Store full state
     })
     .onConflictDoUpdate({
@@ -127,29 +134,35 @@ export async function saveThought(
  * Save a transaction to the database
  */
 export async function saveTransaction(tx: TransactionRecord): Promise<void> {
-  const fromAddress = tx.from;
-  const toAddress = tx.to === "pot" ? "pot" : tx.to;
-  
-  await db
-    .insert(transactions)
-    .values({
-      id: tx.id,
-      gameId: tx.gameId,
-      fromAddress,
-      toAddress,
-      amount: tx.amount,
-      type: tx.type,
-      txHash: tx.txHash || null,
-      facilitatorReceipt: null,
-      status: tx.status,
-    })
-    .onConflictDoUpdate({
-      target: transactions.id,
-      set: {
+  try {
+    // Get player address from game state if needed
+    const fromAddress = tx.from;
+    const toAddress = tx.to === "pot" ? "pot" : tx.to;
+    
+    await db
+      .insert(transactions)
+      .values({
+        id: tx.id,
+        gameId: tx.gameId || null,
+        fromAddress,
+        toAddress,
+        amount: tx.amount, // Schema uses bigint with mode: "number", so pass as number
+        type: tx.type,
+        txHash: tx.txHash || null,
+        facilitatorReceipt: null,
         status: tx.status,
-        txHash: tx.txHash || undefined,
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: transactions.id,
+        set: {
+          status: tx.status,
+          txHash: tx.txHash || null,
+        },
+      });
+  } catch (error) {
+    console.error("Error saving transaction:", error);
+    throw error;
+  }
 }
 
 /**
@@ -162,6 +175,7 @@ export async function getGameFromDB(gameId: string) {
 
 /**
  * Get all games from database with full GameState
+ * Returns games with full state, or constructs minimal state from DB columns
  */
 export async function getAllGamesFromDB(limit = 100): Promise<GameState[]> {
   const result = await db
@@ -171,9 +185,38 @@ export async function getAllGamesFromDB(limit = 100): Promise<GameState[]> {
     .limit(limit);
   
   // Return full GameState from the gameState column, or construct minimal one
-  return result
-    .filter(g => g.gameState) // Only return games with full state
-    .map(g => g.gameState as unknown as GameState);
+  return result.map(g => {
+    if (g.gameState) {
+      // Has full state - return it with createdAt/updatedAt and creatorAddress from DB
+      const state = g.gameState as unknown as GameState;
+      return {
+        ...state,
+        createdAt: g.createdAt?.getTime() || state.createdAt,
+        updatedAt: g.updatedAt?.getTime() || state.updatedAt,
+        creatorAddress: g.creatorAddress || state.creatorAddress,
+      };
+    }
+    
+    // Construct minimal state from database columns
+    return {
+      gameId: g.id,
+      stage: g.stage as GameState["stage"],
+      players: [],
+      pot: 0,
+      communityCards: [],
+      currentBet: 0,
+      dealerIndex: 0,
+      currentPlayerIndex: 0,
+      smallBlind: g.smallBlind,
+      bigBlind: g.bigBlind,
+      stateNonce: 0,
+      stateHash: "",
+      handNumber: g.handNumber,
+      createdAt: g.createdAt?.getTime() || Date.now(),
+      updatedAt: g.updatedAt?.getTime() || Date.now(),
+      creatorAddress: g.creatorAddress || undefined,
+    };
+  });
 }
 
 /**
