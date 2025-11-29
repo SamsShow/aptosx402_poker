@@ -13,6 +13,7 @@ import type { GameState, ThoughtRecord, TransactionRecord } from "@/types";
  */
 export async function saveGame(gameState: GameState, buyIn: number, smallBlind: number, bigBlind: number): Promise<void> {
   try {
+    console.log(`[DB] Saving game ${gameState.gameId} to database...`);
     await db
       .insert(games)
       .values({
@@ -34,8 +35,14 @@ export async function saveGame(gameState: GameState, buyIn: number, smallBlind: 
           updatedAt: new Date(),
         },
       });
+    console.log(`[DB] Successfully saved game ${gameState.gameId} to database`);
   } catch (error) {
     console.error("[DB] Error saving game:", error);
+    // Log more details about the error
+    if (error instanceof Error) {
+      console.error("[DB] Error message:", error.message);
+      console.error("[DB] Error stack:", error.stack);
+    }
     throw error;
   }
 }
@@ -186,6 +193,23 @@ export async function getGameFromDB(gameId: string) {
   } catch (error) {
     console.error("[DB] Error getting game:", error);
     return null;
+  }
+}
+
+/**
+ * Get all games from database
+ */
+export async function getAllGamesFromDB(limit = 100) {
+  try {
+    const result = await db
+      .select()
+      .from(games)
+      .orderBy(desc(games.createdAt))
+      .limit(limit);
+    return result;
+  } catch (error) {
+    console.error("[DB] Error getting all games:", error);
+    return [];
   }
 }
 

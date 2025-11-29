@@ -70,9 +70,14 @@ class GameCoordinator {
     // Save to database
     try {
       await saveGame(state, buyIn, smallBlind, bigBlind);
+      console.log(`[Coordinator] Game ${state.gameId} saved to database`);
     } catch (error) {
       console.error("[Coordinator] Failed to save game to DB:", error);
       // Continue anyway - DB is not critical for game flow
+      // But log the error so we know if there's a DB issue
+      if (error instanceof Error) {
+        console.error("[Coordinator] DB Error details:", error.message);
+      }
     }
     
     this.broadcast({
