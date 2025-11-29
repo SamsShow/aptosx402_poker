@@ -9,6 +9,7 @@ import type { GameState, ThoughtRecord, TransactionRecord, ActionType } from "@/
 import { processAction, startHand, prepareNextHand } from "@/lib/poker/engine";
 import { generateRandomSeed } from "@/lib/poker/deck";
 import { generateGameId } from "@/lib/utils";
+import { saveGame, saveHand, saveAction, saveThought, saveTransaction } from "@/lib/db/game-db";
 
 interface GameSession {
   state: GameState;
@@ -49,11 +50,12 @@ interface ActionResult {
 class GameCoordinator {
   private games: Map<string, GameSession> = new Map();
   private globalListeners: Set<(event: GameEvent) => void> = new Set();
+  private gameConfigs: Map<string, { buyIn: number; smallBlind: number; bigBlind: number }> = new Map();
   
   /**
    * Register a new game
    */
-  registerGame(state: GameState): void {
+  async registerGame(state: GameState, buyIn = 1000, smallBlind = 5, bigBlind = 10): Promise<void> {
     this.games.set(state.gameId, {
       state,
       thoughts: [],
@@ -61,6 +63,17 @@ class GameCoordinator {
       history: [],
       listeners: new Set(),
     });
+    
+    // Store game config
+    this.gameConfigs.set(state.gameId, { buyIn, smallBlind, bigBlind });
+    
+    // Save to database
+    try {
+      await saveGame(state, buyIn, smallBlind, bigBlind);
+    } catch (error) {
+      console.error("[Coordinator] Failed to save game to DB:", error);
+      // Continue anyway - DB is not critical for game flow
+    }
     
     this.broadcast({
       type: "game_created",
@@ -146,6 +159,21 @@ class GameCoordinator {
         };
         session.history.push(handHistory);
         
+        // Save hand to database
+        try {
+          await saveHand(gameId, newState.handNumber, newState, newState, newState.pot);
+        } catch (error) {
+          console.error("[Coordinator] Failed to save hand to DB:", error);
+        }
+        
+        // Update game in database
+        try {
+          const config = this.gameConfigs.get(gameId) || { buyIn: 1000, smallBlind: 5, bigBlind: 10 };
+          await saveGame(newState, config.buyIn, config.smallBlind, config.bigBlind);
+        } catch (error) {
+          console.error("[Coordinator] Failed to update game in DB:", error);
+        }
+        
         session.state = newState;
         
         this.broadcast({
@@ -188,8 +216,16 @@ class GameCoordinator {
       const newState = processAction(session.state, playerId, action, amount);
       
       // Record thought
+      let actionId: string | undefined;
       if (thought) {
         session.thoughts.unshift(thought);
+        
+        // Save thought to database
+        try {
+          await saveThought(thought, actionId);
+        } catch (error) {
+          console.error("[Coordinator] Failed to save thought to DB:", error);
+        }
         
         this.broadcast({
           type: "thought_broadcast",
@@ -214,6 +250,13 @@ class GameCoordinator {
         };
         session.transactions.unshift(tx);
         
+        // Save transaction to database
+        try {
+          await saveTransaction(tx);
+        } catch (error) {
+          console.error("[Coordinator] Failed to save transaction to DB:", error);
+        }
+        
         this.broadcast({
           type: "transaction_confirmed",
           gameId,
@@ -225,6 +268,26 @@ class GameCoordinator {
       // Update history
       const currentHistory = session.history[session.history.length - 1];
       if (currentHistory) {
+        // Save action to database
+        try {
+          const handId = `hand_${gameId}_${currentHistory.handNumber}`;
+          actionId = await saveAction(
+            handId,
+            playerId,
+            action,
+            amount,
+            thought?.stateHash || null,
+            currentHistory.actions.length
+          );
+          
+          // Update thought with actionId if we have one
+          if (thought && actionId) {
+            await saveThought(thought, actionId);
+          }
+        } catch (error) {
+          console.error("[Coordinator] Failed to save action to DB:", error);
+        }
+        
         currentHistory.actions.push({
           playerId,
           action,
@@ -233,6 +296,14 @@ class GameCoordinator {
           timestamp: Date.now(),
         });
         currentHistory.endState = newState;
+      }
+      
+      // Update game state in database
+      try {
+        const config = this.gameConfigs.get(gameId) || { buyIn: 1000, smallBlind: 5, bigBlind: 10 };
+        await saveGame(newState, config.buyIn, config.smallBlind, config.bigBlind);
+      } catch (error) {
+        console.error("[Coordinator] Failed to update game in DB:", error);
       }
       
       // Update state
@@ -273,6 +344,22 @@ class GameCoordinator {
         
         if (currentHistory) {
           currentHistory.winners = winners;
+          currentHistory.endState = newState;
+          
+          // Update hand in database with final state
+          try {
+            const handId = `hand_${gameId}_${currentHistory.handNumber}`;
+            await saveHand(
+              gameId,
+              currentHistory.handNumber,
+              currentHistory.startState,
+              newState,
+              newState.pot,
+              winners[0] // First winner
+            );
+          } catch (error) {
+            console.error("[Coordinator] Failed to update hand in DB:", error);
+          }
         }
         
         this.broadcast({

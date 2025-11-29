@@ -48,8 +48,8 @@ export async function POST(request: NextRequest) {
     // Create game state
     const gameState = createGame(players, { buyIn, smallBlind, bigBlind });
     
-    // Register with coordinator
-    gameCoordinator.registerGame(gameState);
+    // Register with coordinator (saves to database)
+    await gameCoordinator.registerGame(gameState, buyIn, smallBlind, bigBlind);
     
     return NextResponse.json({
       success: true,
