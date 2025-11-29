@@ -14,8 +14,10 @@ import {
   Coins,
   Loader2,
   Gamepad2,
-  User
+  User,
+  Bot
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface GameSummary {
   gameId: string;
@@ -48,6 +50,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isMounted = useRef(true);
+  const router = useRouter();
   
   // Wallet connection
   const { connected, account } = useWallet();
@@ -153,12 +156,11 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <motion.div
-          className="text-center mb-12"
+          className="mb-12"
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-16" /> {/* Spacer for centering */}
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-comic-blue comic-border flex items-center justify-center font-comic text-white text-2xl comic-shadow">
                 x402
@@ -166,10 +168,12 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
             </div>
             <ConnectWalletButton />
           </div>
-          <h1 className="font-comic text-5xl mb-2">GAME LOBBY</h1>
-          <p className="text-muted-foreground font-bold">
-            Select an active game or create a new one
-          </p>
+          <div className="text-center">
+            <h1 className="font-comic text-5xl mb-2">GAME LOBBY</h1>
+            <p className="text-muted-foreground font-bold">
+              Select an active game or create a new one
+            </p>
+          </div>
         </motion.div>
 
         {/* Actions */}
@@ -179,15 +183,26 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.1 }}
         >
-          <Button 
-            variant="outline" 
-            onClick={handleManualRefresh}
-            disabled={isRefreshing}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              onClick={() => router.push("/agents")}
+              className="gap-2"
+            >
+              <Bot className="h-4 w-4" />
+              Agents
+            </Button>
+          </div>
           
           <Button 
             variant="call" 
