@@ -15,7 +15,7 @@ import { getAllGamesFromDB } from "@/lib/db/game-db";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { buyIn = 1000, smallBlind = 5, bigBlind = 10, agentIds, creatorAddress } = body;
+    const { smallBlind = 5, bigBlind = 10, agentIds, creatorAddress } = body;
     
     // Ensure wallet manager is initialized to get real wallet addresses
     if (!walletManager.isInitialized()) {
@@ -24,6 +24,15 @@ export async function POST(request: NextRequest) {
     
     // Get agent addresses
     const agentAddresses = walletManager.getAgentAddresses();
+    
+    // Fetch real wallet balances for all agents
+    const walletInfos = await walletManager.getAllWalletInfos();
+    
+    // Build wallet balances map (in octas)
+    const walletBalances: Record<string, number> = {};
+    for (const [agentId, info] of Object.entries(walletInfos)) {
+      walletBalances[agentId] = info.balance;
+    }
     
     // Get agent configurations
     const agents = (agentIds || Object.keys(AGENT_CONFIGS)).slice(0, 5);
@@ -46,16 +55,27 @@ export async function POST(request: NextRequest) {
       };
     });
     
-    // Create game state
-    const gameState = createGame(players, { buyIn, smallBlind, bigBlind });
+    // Create game state with real wallet balances (no mock buyIn)
+    const gameState = createGame(players, { 
+      smallBlind, 
+      bigBlind,
+      walletBalances, // Pass real wallet balances
+    });
     
     // Register with coordinator (saves to database with creator address)
-    await gameCoordinator.registerGame(gameState, buyIn, smallBlind, bigBlind, creatorAddress);
+    // Note: buyIn parameter is now 0 since we use real balances
+    await gameCoordinator.registerGame(gameState, 0, smallBlind, bigBlind, creatorAddress);
     
     return NextResponse.json({
       success: true,
       gameId: gameState.gameId,
       gameState,
+      // Include funding status in response
+      fundingStatus: {
+        totalPlayers: gameState.players.length,
+        fundedPlayers: gameState.players.filter(p => p.stack > 0).length,
+        needsFunding: gameState.players.some(p => p.stack === 0),
+      },
     });
   } catch (error) {
     console.error("[API] Error creating game:", error);

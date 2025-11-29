@@ -87,11 +87,14 @@ export interface TransactionRecord {
   from: string;
   to: string;
   amount: number;
-  type: "buy_in" | "bet" | "pot_win" | "refund";
+  amountOctas?: number; // Amount in octas (real APT value)
+  type: "buy_in" | "bet" | "pot_win" | "refund" | "settlement";
   txHash: string;
+  explorerUrl?: string; // Link to blockchain explorer
   facilitatorReceipt?: string;
   timestamp: number;
   status: "pending" | "confirmed" | "failed";
+  error?: string; // Error message if transaction failed
 }
 
 // API types
@@ -146,7 +149,9 @@ export type WSEventType =
   | "pot_updated"
   | "winner_declared"
   | "game_ended"
-  | "transaction_confirmed";
+  | "transaction_confirmed"
+  | "transaction_recorded"
+  | "x402_transfer_complete";
 
 export interface WSEvent<T = unknown> {
   type: WSEventType;

@@ -74,6 +74,7 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
   }, [selectedGameId, fetchGame]);
 
   // Create a new game
+  // Note: Games now use real APT wallet balances instead of mock buyIn
   const createGame = async (creatorAddress?: string): Promise<string | null> => {
     setLoading(true);
     try {
@@ -81,9 +82,9 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          buyIn: 1000,
-          smallBlind: 5,
-          bigBlind: 10,
+          // buyIn removed - game uses real wallet balances
+          smallBlind: 5,  // 5 chips = 0.0005 APT
+          bigBlind: 10,   // 10 chips = 0.001 APT
           creatorAddress,
         }),
       });

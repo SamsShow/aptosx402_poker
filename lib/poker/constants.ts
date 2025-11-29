@@ -109,3 +109,52 @@ export const DEFAULT_SETTINGS = {
   ANIMATION_DELAY_MS: 500,
 };
 
+// APT to Chip conversion
+// 1 APT = 100,000,000 octas
+// 1 chip = 10,000 octas = 0.0001 APT
+// This means 1 APT = 10,000 chips
+export const APT_CONVERSION = {
+  OCTAS_PER_APT: 100_000_000,
+  OCTAS_PER_CHIP: 10_000,
+  CHIPS_PER_APT: 10_000,
+  // Minimum balance required to join a game (0.01 APT = 100 chips)
+  MIN_BALANCE_OCTAS: 1_000_000,
+  MIN_BALANCE_CHIPS: 100,
+} as const;
+
+/**
+ * Convert octas to chips
+ */
+export function octasToChips(octas: number): number {
+  return Math.floor(octas / APT_CONVERSION.OCTAS_PER_CHIP);
+}
+
+/**
+ * Convert chips to octas
+ */
+export function chipsToOctas(chips: number): number {
+  return chips * APT_CONVERSION.OCTAS_PER_CHIP;
+}
+
+/**
+ * Convert octas to APT (for display)
+ */
+export function octasToApt(octas: number): number {
+  return octas / APT_CONVERSION.OCTAS_PER_APT;
+}
+
+/**
+ * Convert APT to octas
+ */
+export function aptToOctas(apt: number): number {
+  return Math.floor(apt * APT_CONVERSION.OCTAS_PER_APT);
+}
+
+/**
+ * Format chips as APT string
+ */
+export function formatChipsAsApt(chips: number): string {
+  const apt = (chips * APT_CONVERSION.OCTAS_PER_CHIP) / APT_CONVERSION.OCTAS_PER_APT;
+  return `${apt.toFixed(4)} APT`;
+}
+

@@ -84,7 +84,11 @@ export function PlayerSeat({ player, isCurrentTurn, position }: PlayerSeatProps)
             player.stack > 500 ? "text-comic-green" : 
             player.stack > 100 ? "text-comic-orange" : "text-comic-red"
           )}>
-            ${formatChips(player.stack)}
+            {formatChips(player.stack)} chips
+          </div>
+          {/* Show APT value - 1 chip = 0.0001 APT */}
+          <div className="text-[9px] text-muted-foreground font-mono">
+            {((player.stack * 10000) / 100_000_000).toFixed(4)} APT
           </div>
         </div>
         

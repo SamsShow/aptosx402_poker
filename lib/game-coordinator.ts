@@ -3,13 +3,18 @@
  * 
  * Manages game state, action processing, and event broadcasting
  * Acts as the central authority for game logic
+ * 
+ * Now integrates with x402 protocol for real APT transactions
  */
 
 import type { GameState, ThoughtRecord, TransactionRecord, ActionType } from "@/types";
 import { processAction, startHand, prepareNextHand } from "@/lib/poker/engine";
 import { generateRandomSeed } from "@/lib/poker/deck";
+import { chipsToOctas } from "@/lib/poker/constants";
 import { generateGameId } from "@/lib/utils";
 import { saveGame, saveHand, saveAction, saveThought, saveTransaction } from "@/lib/db/game-db";
+import { walletManager } from "@/lib/wallet-manager";
+import { transfer, getExplorerUrl, createAccountFromPrivateKey } from "@/lib/x402";
 
 interface GameSession {
   state: GameState;
@@ -260,6 +265,8 @@ class GameCoordinator {
       }
       
       // Record transaction if there was a bet
+      // Note: Actual APT transfers happen at settlement, not during betting
+      // This avoids excessive gas costs and maintains game flow
       if (amount > 0 && action !== "fold") {
         const tx: TransactionRecord = {
           id: `tx_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -267,10 +274,11 @@ class GameCoordinator {
           from: playerId,
           to: "pot",
           amount,
+          amountOctas: chipsToOctas(amount), // Track real APT value
           type: "bet",
-          txHash: `0x${Date.now().toString(16)}`, // Mock hash
+          txHash: `pending_settlement`, // Will be updated at hand settlement
           timestamp: Date.now(),
-          status: "confirmed",
+          status: "pending", // Pending until hand settles
         };
         session.transactions.unshift(tx);
         
@@ -282,7 +290,7 @@ class GameCoordinator {
         }
         
         this.broadcast({
-          type: "transaction_confirmed",
+          type: "transaction_recorded",
           gameId,
           payload: tx,
           timestamp: Date.now(),
@@ -370,6 +378,9 @@ class GameCoordinator {
           currentHistory.winners = winners;
           currentHistory.endState = newState;
           
+          // Execute real APT transfers for pot distribution via x402
+          await this.settleHandWithX402(gameId, currentHistory, newState, winners);
+          
           // Update hand in database with final state
           try {
             const handId = `hand_${gameId}_${currentHistory.handNumber}`;
@@ -404,6 +415,137 @@ class GameCoordinator {
         error: error instanceof Error ? error.message : "Failed to process action" 
       };
     }
+  }
+  
+  /**
+   * Settle a hand with real APT transfers via x402 protocol
+   * 
+   * This executes actual on-chain transfers from losers to winners.
+   * The pot amount is distributed proportionally to winners.
+   */
+  private async settleHandWithX402(
+    gameId: string,
+    history: HandHistory,
+    finalState: GameState,
+    winnerIds: string[]
+  ): Promise<void> {
+    const session = this.games.get(gameId);
+    if (!session) return;
+    
+    // Ensure wallet manager is initialized
+    if (!walletManager.isInitialized()) {
+      await walletManager.initialize();
+    }
+    
+    // Calculate total pot and distribution
+    // The pot represents chips; we need to convert to octas for real transfers
+    const potChips = history.startState.pot + 
+      history.actions.reduce((sum, a) => sum + (a.amount || 0), 0);
+    const potOctas = chipsToOctas(potChips);
+    
+    if (potOctas === 0 || winnerIds.length === 0) {
+      console.log("[Coordinator] No pot to distribute or no winners");
+      return;
+    }
+    
+    // Calculate winnings per winner
+    const winningsPerWinner = Math.floor(potOctas / winnerIds.length);
+    
+    // Get losers (players who contributed to pot but didn't win)
+    const losers = history.actions
+      .filter(a => a.amount > 0 && !winnerIds.includes(a.playerId))
+      .map(a => ({ playerId: a.playerId, amount: chipsToOctas(a.amount) }));
+    
+    // For now, we'll track the transfers but may not execute all of them
+    // to avoid excessive gas costs. Instead, we record them for transparency.
+    // In a production system, you might use a smart contract escrow.
+    
+    console.log(`[Coordinator] Settling hand - Pot: ${potOctas} octas, Winners: ${winnerIds.join(', ')}`);
+    
+    // Execute transfers from each loser to winners (proportionally)
+    for (const loser of losers) {
+      const loserWallet = walletManager.getWallet(loser.playerId);
+      if (!loserWallet) {
+        console.warn(`[Coordinator] No wallet found for loser ${loser.playerId}`);
+        continue;
+      }
+      
+      // Each loser transfers their bet amount to winners proportionally
+      const amountPerWinner = Math.floor(loser.amount / winnerIds.length);
+      if (amountPerWinner === 0) continue;
+      
+      for (const winnerId of winnerIds) {
+        const winnerAddress = finalState.players.find(p => p.id === winnerId)?.address;
+        if (!winnerAddress) continue;
+        
+        try {
+          // Execute actual APT transfer via x402
+          const receipt = await transfer(loserWallet, winnerAddress, amountPerWinner);
+          
+          console.log(`[Coordinator] x402 Transfer: ${loser.playerId} -> ${winnerId}: ${amountPerWinner} octas (tx: ${receipt.txHash})`);
+          
+          // Record the settlement transaction
+          const settlementTx: TransactionRecord = {
+            id: `settle_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            gameId,
+            from: loser.playerId,
+            to: winnerId,
+            amount: amountPerWinner,
+            amountOctas: amountPerWinner,
+            type: "settlement",
+            txHash: receipt.txHash,
+            explorerUrl: getExplorerUrl(receipt.txHash),
+            timestamp: Date.now(),
+            status: "confirmed",
+          };
+          
+          session.transactions.unshift(settlementTx);
+          
+          // Save to database
+          try {
+            await saveTransaction(settlementTx);
+          } catch (error) {
+            console.error("[Coordinator] Failed to save settlement tx to DB:", error);
+          }
+          
+          // Broadcast the settlement
+          this.broadcast({
+            type: "x402_transfer_complete",
+            gameId,
+            payload: {
+              from: loser.playerId,
+              to: winnerId,
+              amount: amountPerWinner,
+              txHash: receipt.txHash,
+              explorerUrl: getExplorerUrl(receipt.txHash),
+            },
+            timestamp: Date.now(),
+          });
+          
+        } catch (error) {
+          console.error(`[Coordinator] x402 transfer failed: ${loser.playerId} -> ${winnerId}:`, error);
+          
+          // Record failed transfer
+          const failedTx: TransactionRecord = {
+            id: `settle_failed_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            gameId,
+            from: loser.playerId,
+            to: winnerId,
+            amount: amountPerWinner,
+            amountOctas: amountPerWinner,
+            type: "settlement",
+            txHash: "",
+            timestamp: Date.now(),
+            status: "failed",
+            error: error instanceof Error ? error.message : "Transfer failed",
+          };
+          
+          session.transactions.unshift(failedTx);
+        }
+      }
+    }
+    
+    console.log(`[Coordinator] Hand settlement complete for game ${gameId}`);
   }
   
   /**

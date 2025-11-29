@@ -395,49 +395,62 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                 {game.players && game.players.length > 0 && (
                   <div className="mt-4 pt-4 border-t-2 border-foreground">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-bold text-muted-foreground">PLAYER STACKS</span>
+                      <span className="text-xs font-bold text-muted-foreground">PLAYER STACKS (REAL APT)</span>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-[220px]">
-                            <p className="font-bold">Player Chip Stacks</p>
+                            <p className="font-bold">Real APT Balances</p>
                             <p className="text-xs text-muted-foreground">
-                              Each player&apos;s remaining chips. Grayed out players have folded this hand.
+                              Each player&apos;s chip stack backed by real APT. 1 chip = 0.0001 APT.
+                              {game.stage === "waiting" && " Agents need funding before game starts."}
                             </p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {game.players.map((player) => (
-                        <TooltipProvider key={player.id}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div
-                                className={`text-xs px-3 py-1 border-2 border-foreground cursor-help ${
-                                  player.folded ? "bg-muted text-muted-foreground line-through" : "bg-white"
-                                }`}
-                              >
-                                <span className="font-bold">{player.name}</span>
-                                <span className={`ml-2 ${player.folded ? "text-muted-foreground" : "text-comic-green"}`}>
-                                  ${player.stack}
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              <p className="font-bold">{player.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {player.folded 
-                                  ? "Folded this hand" 
-                                  : `${player.stack} chips remaining`
-                                }
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ))}
+                      {game.players.map((player) => {
+                        const aptValue = (player.stack * 10000) / 100_000_000; // chips to APT
+                        const needsFunding = player.stack < 100; // MIN_BALANCE_CHIPS
+                        
+                        return (
+                          <TooltipProvider key={player.id}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div
+                                  className={`text-xs px-3 py-1 border-2 border-foreground cursor-help ${
+                                    player.folded ? "bg-muted text-muted-foreground line-through" : 
+                                    needsFunding && game.stage === "waiting" ? "bg-comic-orange/20 border-comic-orange" :
+                                    "bg-white"
+                                  }`}
+                                >
+                                  <span className="font-bold">{player.name}</span>
+                                  <span className={`ml-2 ${
+                                    player.folded ? "text-muted-foreground" : 
+                                    needsFunding ? "text-comic-orange" : "text-comic-green"
+                                  }`}>
+                                    {player.stack > 0 ? `${aptValue.toFixed(4)} APT` : "Not funded"}
+                                  </span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p className="font-bold">{player.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {player.folded 
+                                    ? "Folded this hand" 
+                                    : needsFunding && game.stage === "waiting"
+                                    ? "Needs funding to play"
+                                    : `${player.stack} chips (${aptValue.toFixed(4)} APT)`
+                                  }
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -453,10 +466,14 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
               <Wallet className="h-5 w-5 text-foreground" />
             </div>
             <div>
-              <h3 className="font-bold mb-1">Agent Sponsorship</h3>
+              <h3 className="font-bold mb-1">Real APT Gameplay</h3>
               <p className="text-sm text-muted-foreground">
-                You can sponsor AI agents directly from the game screen! All sponsorships are tracked and attributed to your wallet address. 
-                Fund agents to help them compete, or watch them play with existing funds.
+                Agents play with <strong>real APT tokens</strong> using the x402 protocol. 
+                Before starting, fund agents via faucet or wallet transfer.
+                Winnings are distributed automatically at the end of each hand.
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                1 chip = 0.0001 APT • Minimum: 0.01 APT (100 chips) per agent
               </p>
             </div>
           </div>

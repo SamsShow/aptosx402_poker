@@ -11,36 +11,47 @@
 import type { GameState, Player, Card, ActionType, GameStage, PlayerAction } from "@/types";
 import { createDeck, shuffleDeck, dealHoleCards, dealCommunityCards } from "./deck";
 import { evaluateHand, determineWinners, calculatePotDistribution } from "./evaluator";
-import { DEFAULT_SETTINGS, GAME_STAGES, ACTION_TYPES } from "./constants";
+import { DEFAULT_SETTINGS, GAME_STAGES, ACTION_TYPES, octasToChips, APT_CONVERSION } from "./constants";
 import { generateGameId, hashString } from "@/lib/utils";
 
 /**
  * Create a new game state
+ * 
+ * NOTE: Players are initialized with stack: 0. 
+ * Use updatePlayerStacks() to set real balances from wallets before starting.
  */
 export function createGame(
   players: Omit<Player, "cards" | "folded" | "isAllIn" | "isTurn" | "bet" | "isDealer" | "lastAction">[],
   options: {
-    buyIn?: number;
     smallBlind?: number;
     bigBlind?: number;
+    /** Optional: wallet balances in octas to set initial stacks (keyed by player id) */
+    walletBalances?: Record<string, number>;
   } = {}
 ): GameState {
-  const buyIn = options.buyIn || DEFAULT_SETTINGS.DEFAULT_BUY_IN;
   const smallBlind = options.smallBlind || DEFAULT_SETTINGS.DEFAULT_SMALL_BLIND;
   const bigBlind = options.bigBlind || DEFAULT_SETTINGS.DEFAULT_BIG_BLIND;
+  const walletBalances = options.walletBalances || {};
   
   const now = Date.now();
   
-  const fullPlayers: Player[] = players.map((p, index) => ({
-    ...p,
-    stack: buyIn,
-    bet: 0,
-    cards: [],
-    folded: false,
-    isAllIn: false,
-    isDealer: index === 0,
-    isTurn: false,
-  }));
+  // Initialize players with real balances from wallets (converted to chips)
+  // If no wallet balance provided, stack starts at 0 (requires funding before game)
+  const fullPlayers: Player[] = players.map((p, index) => {
+    const balanceOctas = walletBalances[p.id] || 0;
+    const stackChips = octasToChips(balanceOctas);
+    
+    return {
+      ...p,
+      stack: stackChips,
+      bet: 0,
+      cards: [],
+      folded: false,
+      isAllIn: false,
+      isDealer: index === 0,
+      isTurn: false,
+    };
+  });
   
   return {
     gameId: generateGameId(),
@@ -58,6 +69,63 @@ export function createGame(
     handNumber: 0,
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+/**
+ * Update player stacks with real wallet balances
+ * Call this before starting a game to sync stacks with on-chain balances
+ * 
+ * @param state Current game state
+ * @param walletBalances Map of player ID to wallet balance in octas
+ * @returns Updated game state with synced stacks
+ */
+export function updatePlayerStacks(
+  state: GameState,
+  walletBalances: Record<string, number>
+): GameState {
+  const updatedPlayers = state.players.map((player) => {
+    const balanceOctas = walletBalances[player.id] || 0;
+    const stackChips = octasToChips(balanceOctas);
+    
+    return {
+      ...player,
+      stack: stackChips,
+    };
+  });
+  
+  return {
+    ...state,
+    players: updatedPlayers,
+    updatedAt: Date.now(),
+  };
+}
+
+/**
+ * Check if all players have sufficient balance to play
+ * 
+ * @param state Game state to check
+ * @returns Object with validation result and any underfunded players
+ */
+export function validatePlayerBalances(state: GameState): {
+  valid: boolean;
+  underfundedPlayers: { id: string; name: string; stack: number; required: number }[];
+  minRequired: number;
+} {
+  const minRequired = APT_CONVERSION.MIN_BALANCE_CHIPS;
+  const underfundedPlayers = state.players
+    .filter((p) => p.stack < minRequired)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      stack: p.stack,
+      required: minRequired,
+    }));
+  
+  return {
+    valid: underfundedPlayers.length === 0,
+    underfundedPlayers,
+    minRequired,
   };
 }
 

@@ -2,21 +2,129 @@
 
 import { useGameStore } from "@/lib/store/game-store";
 import { formatAddress } from "@/lib/utils";
-import { ExternalLink, Copy, CheckCircle, Gamepad2, Play, Square, Loader2, Wallet, Coins } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, Copy, CheckCircle, Gamepad2, Play, Square, Loader2, Wallet, Coins, RefreshCw, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { FundAgentModal } from "./fund-agent-modal";
+import { PreGameFundingModal } from "./pre-game-funding";
+
+interface PlayerBalance {
+  id: string;
+  name: string;
+  address: string;
+  currentStack: number;
+  walletBalance: {
+    octas: number;
+    chips: number;
+    apt: number;
+    formatted: string;
+  };
+  hasSufficientFunds: boolean;
+  needsFunding: boolean;
+}
+
+interface BalanceStatus {
+  players: PlayerBalance[];
+  summary: {
+    totalPlayers: number;
+    fundedPlayers: number;
+    allFunded: boolean;
+    canStartGame: boolean;
+  };
+  minRequired: {
+    chips: number;
+    octas: number;
+    apt: number;
+  };
+}
 
 interface GameInfoProps {
   gameId?: string;
 }
 
 export function GameInfo({ gameId }: GameInfoProps) {
-  const { gameState, isConnected } = useGameStore();
+  const { gameState, isConnected, setGameState } = useGameStore();
   const [copied, setCopied] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [balanceStatus, setBalanceStatus] = useState<BalanceStatus | null>(null);
+  const [showFundingModal, setShowFundingModal] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
+  
+  // Fetch balance status for all players
+  const fetchBalanceStatus = useCallback(async () => {
+    if (!gameId) return;
+    
+    try {
+      const res = await fetch(`/api/game/${gameId}/sync-balances`);
+      const data = await res.json();
+      
+      if (data.success) {
+        setBalanceStatus(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch balance status:", error);
+    }
+  }, [gameId]);
+  
+  // Fetch balance status on mount and when game state changes
+  useEffect(() => {
+    if (gameId && gameState?.stage === "waiting") {
+      fetchBalanceStatus();
+    }
+  }, [gameId, gameState?.stage, fetchBalanceStatus]);
+  
+  // Sync balances from wallets
+  const syncBalances = async () => {
+    if (!gameId) return;
+    
+    setIsSyncing(true);
+    try {
+      const res = await fetch(`/api/game/${gameId}/sync-balances`, {
+        method: "POST",
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        setBalanceStatus({
+          players: data.players.map((p: any) => ({
+            ...p,
+            walletBalance: {
+              octas: p.newStack * 10000,
+              chips: p.newStack,
+              apt: p.walletBalanceApt,
+              formatted: `${p.walletBalanceApt.toFixed(4)} APT`,
+            },
+            hasSufficientFunds: p.hasSufficientFunds,
+            needsFunding: !p.hasSufficientFunds,
+          })),
+          summary: {
+            totalPlayers: data.players.length,
+            fundedPlayers: data.players.filter((p: any) => p.hasSufficientFunds).length,
+            allFunded: data.canStartGame,
+            canStartGame: data.canStartGame,
+          },
+          minRequired: data.validation?.minRequired ? {
+            chips: data.validation.minRequired,
+            octas: data.validation.minRequired * 10000,
+            apt: (data.validation.minRequired * 10000) / 100_000_000,
+          } : { chips: 100, octas: 1_000_000, apt: 0.01 },
+        });
+        
+        // Update game state if returned
+        if (data.gameState) {
+          setGameState(data.gameState);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to sync balances:", error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
   
   if (!gameState) {
     return (
@@ -41,7 +149,15 @@ export function GameInfo({ gameId }: GameInfoProps) {
   const startGame = async () => {
     if (!gameId) return;
     
+    // Check if funding is needed
+    if (balanceStatus && !balanceStatus.summary.allFunded) {
+      setShowFundingModal(true);
+      return;
+    }
+    
     setIsStarting(true);
+    setFundingError(null);
+    
     try {
       // Start the game loop - it will handle starting hands automatically
       const res = await fetch(`/api/game/${gameId}/run`, {
@@ -55,11 +171,19 @@ export function GameInfo({ gameId }: GameInfoProps) {
       });
       
       const data = await res.json();
+      
       if (data.success) {
         setIsRunning(true);
+      } else if (data.needsFunding) {
+        // Funding required - show modal
+        setFundingError(data.message || "Agents need funding before starting");
+        setShowFundingModal(true);
+      } else {
+        setFundingError(data.error || "Failed to start game");
       }
     } catch (error) {
       console.error("Failed to start game:", error);
+      setFundingError("Failed to start game");
     } finally {
       setIsStarting(false);
     }
@@ -124,6 +248,53 @@ export function GameInfo({ gameId }: GameInfoProps) {
         </div>
       </div>
 
+      {/* Funding Status - Only show in waiting state */}
+      {gameState.stage === "waiting" && balanceStatus && (
+        <div className="mb-6">
+          <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2 block">
+            Funding Status
+          </label>
+          <div className={`p-3 border-2 border-foreground ${
+            balanceStatus.summary.allFunded ? "bg-comic-green/10" : "bg-comic-orange/10"
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-bold text-sm">
+                {balanceStatus.summary.fundedPlayers}/{balanceStatus.summary.totalPlayers} Agents Funded
+              </span>
+              {balanceStatus.summary.allFunded ? (
+                <CheckCircle className="h-4 w-4 text-comic-green" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-comic-orange" />
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Min required: {balanceStatus.minRequired.apt.toFixed(4)} APT per agent
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-2 gap-2"
+              onClick={syncBalances}
+              disabled={isSyncing}
+            >
+              {isSyncing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+              Sync Wallet Balances
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Funding Error */}
+      {fundingError && (
+        <div className="mb-6 p-3 bg-comic-red/10 border-2 border-comic-red">
+          <p className="text-comic-red text-sm font-bold">{fundingError}</p>
+        </div>
+      )}
+
       {/* Game Controls */}
       <div className="mb-6">
         <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3 block">
@@ -169,6 +340,20 @@ export function GameInfo({ gameId }: GameInfoProps) {
           </p>
         )}
       </div>
+
+      {/* Pre-game Funding Modal */}
+      <PreGameFundingModal
+        open={showFundingModal}
+        onOpenChange={setShowFundingModal}
+        buyIn={balanceStatus?.minRequired.chips || 100}
+        onStartGame={async () => {
+          // Sync balances first, then start game
+          await syncBalances();
+          setShowFundingModal(false);
+          startGame();
+        }}
+        gameId={gameId}
+      />
       
       {/* Divider */}
       <div className="h-1 bg-foreground my-6" />
@@ -192,34 +377,59 @@ export function GameInfo({ gameId }: GameInfoProps) {
           Players ({gameState.players.filter(p => !p.folded).length}/{gameState.players.length} active)
         </label>
         <div className="mt-3 space-y-3">
-          {gameState.players.map((player, index) => (
-            <div 
-              key={player.id}
-              className={`flex items-center justify-between text-sm p-2 border-2 border-foreground ${
-                player.isTurn ? "bg-comic-yellow comic-shadow" :
-                player.folded ? "opacity-50 bg-muted" : "bg-white"
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`w-3 h-3 border-2 border-foreground ${
-                  player.isTurn ? "bg-comic-green" :
-                  player.folded ? "bg-comic-red" : "bg-muted"
-                }`} />
-                <span className="font-bold uppercase">{player.name}</span>
-                {player.isDealer && (
-                  <span className="comic-badge bg-comic-yellow text-foreground px-1.5 py-0 text-[10px]">
-                    D
+          {gameState.players.map((player, index) => {
+            const playerBalance = balanceStatus?.players.find(p => p.id === player.id);
+            
+            return (
+              <div 
+                key={player.id}
+                className={`text-sm p-2 border-2 border-foreground ${
+                  player.isTurn ? "bg-comic-yellow comic-shadow" :
+                  player.folded ? "opacity-50 bg-muted" : "bg-white"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-3 h-3 border-2 border-foreground ${
+                      player.isTurn ? "bg-comic-green" :
+                      player.folded ? "bg-comic-red" : "bg-muted"
+                    }`} />
+                    <span className="font-bold uppercase">{player.name}</span>
+                    {player.isDealer && (
+                      <span className="comic-badge bg-comic-yellow text-foreground px-1.5 py-0 text-[10px]">
+                        D
+                      </span>
+                    )}
+                  </div>
+                  <span className={`font-comic text-lg ${
+                    player.stack > 500 ? "text-comic-green" : 
+                    player.stack > 100 ? "text-comic-orange" : "text-comic-red"
+                  }`}>
+                    {player.stack} chips
                   </span>
+                </div>
+                {/* Show real APT balance if available */}
+                {playerBalance && (
+                  <div className="flex items-center justify-between mt-1 pt-1 border-t border-dashed">
+                    <span className="text-xs text-muted-foreground">
+                      Wallet: {playerBalance.walletBalance.apt.toFixed(4)} APT
+                    </span>
+                    {playerBalance.needsFunding ? (
+                      <span className="text-xs text-comic-red font-bold flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Needs funding
+                      </span>
+                    ) : (
+                      <span className="text-xs text-comic-green font-bold flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Funded
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
-              <span className={`font-comic text-lg ${
-                player.stack > 500 ? "text-comic-green" : 
-                player.stack > 100 ? "text-comic-orange" : "text-comic-red"
-              }`}>
-                ${player.stack}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       
