@@ -31,11 +31,12 @@ import {
 
 // Import utilities from aptos-x402 package
 import {
-  getAptosClient,
   getAccountFromPrivateKey,
   signAndSubmitPayment,
-  getAccountBalance,
 } from "aptos-x402";
+
+// Use our configured Aptos client (with API key support)
+import { aptosClient } from "./aptos-client";
 
 // Public x402 Facilitator URL (for HTTP 402 payment protocol)
 const X402_FACILITATOR_URL = process.env.FACILITATOR_URL || "https://aptos-x402.vercel.app/api/facilitator";
@@ -43,8 +44,8 @@ const X402_FACILITATOR_URL = process.env.FACILITATOR_URL || "https://aptos-x402.
 // Get the network from environment
 const network = process.env.APTOS_NETWORK || "testnet";
 
-// Initialize Aptos client using aptos-x402 utility
-const aptos = getAptosClient(network);
+// Use our configured Aptos client (includes API key support)
+const aptos = aptosClient;
 
 // Types for game payments
 export interface PaymentRequest {
@@ -108,42 +109,48 @@ export function createAccountFromPrivateKey(privateKeyHex: string): Account {
 }
 
 /**
- * Get account balance using aptos-x402 utility
+ * Get account balance using our configured Aptos client
  */
 export async function getBalance(address: string): Promise<number> {
+  // Server-side only - this uses our configured aptosClient with API key
+  if (typeof window !== "undefined") {
+    throw new Error("getBalance can only be called server-side. Use /api/account/balance for client-side.");
+  }
+  
   try {
-    const balance = await getAccountBalance(aptos, address);
-    return parseInt(balance, 10);
-  } catch {
-    // Fallback: try direct API call
-    try {
-      const resources = await aptos.getAccountResources({
-        accountAddress: AccountAddress.from(address),
-      });
-      
-      const coinResource = resources.find(
-        (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
-      );
-      
-      if (!coinResource) return 0;
-      
-      return parseInt((coinResource.data as { coin: { value: string } }).coin.value, 10);
-    } catch {
-      return 0;
-    }
+    const resources = await aptos.getAccountResources({
+      accountAddress: AccountAddress.from(address),
+    });
+    
+    const coinResource = resources.find(
+      (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
+    );
+    
+    if (!coinResource) return 0;
+    
+    return parseInt((coinResource.data as { coin: { value: string } }).coin.value, 10);
+  } catch (error) {
+    console.error(`[x402] Failed to get balance for ${address}:`, error);
+    return 0;
   }
 }
 
 /**
  * Transfer APT tokens directly using aptos-x402 utility
+ * Uses our configured Aptos client with API key support
  */
 export async function transfer(
   sender: Account,
   recipient: string,
   amount: number
 ): Promise<PaymentReceipt> {
+  // Server-side only
+  if (typeof window !== "undefined") {
+    throw new Error("transfer can only be called server-side");
+  }
+  
   try {
-    // Use aptos-x402 signAndSubmitPayment
+    // Use aptos-x402 signAndSubmitPayment with our configured client
     const txHash = await signAndSubmitPayment(
       aptos,
       sender,
