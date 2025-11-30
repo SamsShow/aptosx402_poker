@@ -9,8 +9,9 @@ import { GameInfo } from "./poker/game-info";
 import { GameSelection } from "./game-selection";
 import { ConnectWalletButton } from "./connect-wallet-button";
 import { useGameStore } from "@/lib/store/game-store";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface PokerLobbyProps {
   initialGameId?: string;
@@ -18,6 +19,7 @@ interface PokerLobbyProps {
 
 export function PokerLobby({ initialGameId }: PokerLobbyProps) {
   const [selectedGameId, setSelectedGameId] = useState<string | null>(initialGameId || null);
+  const [thoughtsPanelCollapsed, setThoughtsPanelCollapsed] = useState(false);
   const {
     gameState,
     thoughts,
@@ -235,9 +237,44 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
             </div>
           </section>
 
-          {/* Right panel - Thoughts */}
-          <aside className="w-96 bg-white comic-border border-t-0 border-r-0 p-6 flex flex-col flex-shrink-0 min-h-0 h-full">
-            <ThoughtFeed thoughts={thoughts} />
+          {/* Right panel - Thoughts (Collapsible) */}
+          <aside 
+            className={cn(
+              "bg-white comic-border border-t-0 border-r-0 flex flex-col flex-shrink-0 min-h-0 h-full transition-all duration-300 ease-in-out relative",
+              thoughtsPanelCollapsed ? "w-12" : "w-96"
+            )}
+          >
+            {/* Collapse/Expand toggle button */}
+            <button
+              onClick={() => setThoughtsPanelCollapsed(!thoughtsPanelCollapsed)}
+              className="absolute -left-3 top-1/2 -translate-y-1/2 z-30 w-6 h-16 bg-comic-purple comic-border flex items-center justify-center hover:scale-110 transition-transform"
+              title={thoughtsPanelCollapsed ? "Expand thoughts" : "Collapse thoughts"}
+            >
+              {thoughtsPanelCollapsed ? (
+                <ChevronLeft className="h-4 w-4 text-white" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-white" />
+              )}
+            </button>
+
+            {/* Collapsed state - vertical label */}
+            {thoughtsPanelCollapsed ? (
+              <div className="flex flex-col items-center justify-center h-full py-6 gap-4">
+                <div className="w-8 h-8 bg-comic-purple comic-border flex items-center justify-center">
+                  <Brain className="h-4 w-4 text-white" />
+                </div>
+                <div className="writing-vertical font-comic text-sm tracking-wider">
+                  THOUGHTS
+                </div>
+                <div className="comic-badge bg-comic-yellow text-foreground px-2 py-1 text-xs">
+                  {thoughts.length}
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 flex flex-col h-full overflow-hidden">
+                <ThoughtFeed thoughts={thoughts} />
+              </div>
+            )}
           </aside>
         </main>
       )}

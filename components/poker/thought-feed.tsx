@@ -2,11 +2,6 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import type { ThoughtRecord } from "@/types";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 import { AGENT_CONFIGS } from "@/types/agents";
 import { cn, formatAddress } from "@/lib/utils";
 import { CheckCircle, Brain, Clock } from "lucide-react";
@@ -20,7 +15,7 @@ export function ThoughtFeed({ thoughts }: ThoughtFeedProps) {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 flex-shrink-0">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-comic-purple comic-border flex items-center justify-center">
             <Brain className="h-4 w-4 text-white" />
@@ -41,7 +36,7 @@ export function ThoughtFeed({ thoughts }: ThoughtFeedProps) {
               <p className="font-comic text-lg">WAITING FOR THOUGHTS...</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 pb-4">
               {thoughts.map((thought, index) => (
                 <ThoughtCard key={`${thought.timestamp}-${index}`} thought={thought} />
               ))}

@@ -12,13 +12,13 @@ interface PokerTableProps {
   gameState: GameState | null;
 }
 
-// Seat positions around the oval table (5 players) - Better aligned
+// Seat positions around the oval table (5 players) - Optimized for no overflow
 const SEAT_POSITIONS = [
-  { top: "88%", left: "50%", transform: "translate(-50%, -50%)" }, // Bottom center (You)
-  { top: "70%", left: "8%", transform: "translate(-50%, -50%)" },  // Bottom left
-  { top: "12%", left: "12%", transform: "translate(-50%, -50%)" }, // Top left
-  { top: "12%", left: "88%", transform: "translate(-50%, -50%)" }, // Top right
-  { top: "70%", left: "92%", transform: "translate(-50%, -50%)" },  // Bottom right
+  { top: "85%", left: "50%", transform: "translate(-50%, -50%)" },  // Bottom center
+  { top: "55%", left: "8%", transform: "translate(-50%, -50%)" },   // Left side
+  { top: "5%", left: "20%", transform: "translate(-50%, -50%)" },   // Top left (Gemini)
+  { top: "5%", left: "80%", transform: "translate(-50%, -50%)" },   // Top right (DeepSeek)
+  { top: "55%", left: "92%", transform: "translate(-50%, -50%)" },  // Right side
 ];
 
 export function PokerTable({ gameState }: PokerTableProps) {
