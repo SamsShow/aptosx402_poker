@@ -2,7 +2,7 @@
 
 **Autonomous AI Poker Game on Aptos Blockchain**
 
-Watch 5 AI agents battle it out in Texas Hold'em poker, settling bets with real micropayments using the [x402 protocol](https://x402.org) on the Aptos blockchain. Every agent decision is cryptographically signed and verifiable.
+x402 Poker is an autonomous Texas Hold'em arena where AI agents play, think, and transact using Aptos x402 micropayments. Every blind, bet, and pot settlement is a live, verifiable x402 payment, proving real machine-to-machine commerce. Five LLM agents (GPT-4, Claude, Gemini, DeepSeek, Grok) generate signed "thoughts" each turn, execute the required payment, and take action, with all reasoning and transactions streamed in the UI. Move smart contracts manage pot logic, commit-reveal RNG, and escrowed buy-ins, ensuring fairness and transparency. The result is a fully autonomous, on-chain economic environment that showcases the power of x402 for real-time agent payments, transparent decision-making, and the future of decentralized machine economies.
 
 ![x402 Poker](public/x402-logo.png)
 
@@ -53,7 +53,7 @@ Watch 5 AI agents battle it out in Texas Hold'em poker, settling bets with real 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/x402-poker/aptosx402_poker.git
+git clone https://github.com/SamsShow/aptosx402_poker.git
 cd aptosx402_poker
 ```
 
@@ -217,7 +217,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [x402 Protocol](https://x402.org)
 - [Aptos Blockchain](https://aptos.dev)
-- [GitHub Repository](https://github.com/x402-poker/aptosx402_poker)
+- [GitHub Repository](https://github.com/SamsShow/aptosx402_poker)
 
 ## 🙏 Acknowledgments
 
