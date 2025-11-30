@@ -20,10 +20,10 @@ import { AGENT_CONFIGS } from "@/types/agents";
 import type { AgentModel } from "@/types";
 import { cn, formatAddress } from "@/lib/utils";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
-import { 
-  Copy, 
-  CheckCircle, 
-  Wallet, 
+import {
+  Copy,
+  CheckCircle,
+  Wallet,
   ExternalLink,
   Coins,
   Loader2,
@@ -32,6 +32,7 @@ import {
   Users,
   TrendingUp
 } from "lucide-react";
+import { getExplorerUrl } from "@/lib/aptos-client";
 
 interface Sponsor {
   address: string;
@@ -58,8 +59,8 @@ interface FundAgentModalProps {
   children?: React.ReactNode; // Allow custom trigger button
 }
 
-export function FundAgentModal({ 
-  agentId, 
+export function FundAgentModal({
+  agentId,
   walletAddress,
   balance = 0,
   sponsorship,
@@ -74,15 +75,16 @@ export function FundAgentModal({
   const [transferAmount, setTransferAmount] = useState(0.1); // Default 0.1 APT
   const [transferSuccess, setTransferSuccess] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
+  const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [showSponsors, setShowSponsors] = useState(false);
-  
+
   // Wallet connection
   const { connected, account, signAndSubmitTransaction } = useWallet();
-  
+
   const model = agentId.replace("agent_", "") as AgentModel;
   const config = AGENT_CONFIGS[model];
-  
+
   const copyAddress = async () => {
     if (walletAddress) {
       await navigator.clipboard.writeText(walletAddress);
@@ -90,10 +92,10 @@ export function FundAgentModal({
       setTimeout(() => setCopied(false), 2000);
     }
   };
-  
+
   const handleFundFromFaucet = async () => {
     if (!onFundRequest) return;
-    
+
     setFunding(true);
     try {
       await onFundRequest();
@@ -104,19 +106,19 @@ export function FundAgentModal({
       setFunding(false);
     }
   };
-  
+
   // Transfer APT from connected wallet to agent and record sponsorship
   const handleTransferFromWallet = async () => {
     if (!connected || !walletAddress || !signAndSubmitTransaction || !account) return;
-    
+
     setTransferring(true);
     setTransferError(null);
     setTransferSuccess(false);
-    
+
     try {
       // Convert APT to octas (1 APT = 100,000,000 octas)
       const amountInOctas = Math.floor(transferAmount * 100_000_000);
-      
+
       // Submit APT transfer transaction
       const response = await signAndSubmitTransaction({
         data: {
@@ -124,9 +126,13 @@ export function FundAgentModal({
           functionArguments: [walletAddress, amountInOctas],
         },
       });
-      
+
       console.log("Transfer transaction submitted:", response);
-      
+
+      // Store transaction hash
+      const txHash = response.hash;
+      setTransactionHash(txHash);
+
       // Record sponsorship in our database
       try {
         await fetch(`/api/agents/${agentId}/fund`, {
@@ -135,7 +141,7 @@ export function FundAgentModal({
           body: JSON.stringify({
             amount: amountInOctas,
             sponsorAddress: account.address?.toString(),
-            txHash: response.hash,
+            txHash,
             gameId,
             source: "wallet",
           }),
@@ -145,15 +151,17 @@ export function FundAgentModal({
         console.error("Failed to record sponsorship:", recordError);
         // Continue anyway, the on-chain transfer succeeded
       }
-      
+
       setTransferSuccess(true);
       onFundSuccess?.();
-      
-      // Reset after success
+
+      // Close modal after 2 seconds
       setTimeout(() => {
+        setOpen(false);
         setTransferSuccess(false);
-      }, 3000);
-      
+        setTransactionHash(null);
+      }, 2000);
+
     } catch (error) {
       console.error("Failed to transfer:", error);
       setTransferError(error instanceof Error ? error.message : "Transfer failed");
@@ -161,12 +169,25 @@ export function FundAgentModal({
       setTransferring(false);
     }
   };
-  
+
   // Get display sponsors (from either sponsors or topSponsors)
   const displaySponsors = sponsorship?.sponsors || sponsorship?.topSponsors || [];
-  
+
+  // Reset state when modal closes
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      // Reset all state when closing
+      setTransferSuccess(false);
+      setTransactionHash(null);
+      setTransferError(null);
+      setFunding(false);
+      setTransferring(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         {children || (
           <Button variant="ghost" size="sm" className="gap-2">
@@ -178,12 +199,12 @@ export function FundAgentModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            <Avatar 
+            <Avatar
               className="h-10 w-10 border-2"
               style={{ borderColor: config?.color || "#666" }}
             >
               <AvatarImage src={config?.avatar} alt={config?.name} />
-              <AvatarFallback 
+              <AvatarFallback
                 style={{ backgroundColor: config?.color || "#666" }}
                 className="text-white font-bold"
               >
@@ -198,7 +219,7 @@ export function FundAgentModal({
             </div>
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4 py-4">
           {/* Current balance and sponsor stats */}
           <div className="grid grid-cols-2 gap-3">
@@ -222,11 +243,11 @@ export function FundAgentModal({
               </div>
             </div>
           </div>
-          
+
           {/* Sponsors list */}
           {displaySponsors.length > 0 && (
             <div className="space-y-2">
-              <button 
+              <button
                 onClick={() => setShowSponsors(!showSponsors)}
                 className="flex items-center gap-2 text-sm font-medium hover:text-comic-blue transition-colors"
               >
@@ -234,12 +255,12 @@ export function FundAgentModal({
                 {showSponsors ? "Hide Sponsors" : "Show Sponsors"}
                 <TrendingUp className="h-3 w-3 ml-auto" />
               </button>
-              
+
               {showSponsors && (
                 <ScrollArea className="h-[120px] rounded-lg border">
                   <div className="p-2 space-y-1">
                     {displaySponsors.map((sponsor, i) => (
-                      <div 
+                      <div
                         key={sponsor.address + i}
                         className="flex items-center justify-between p-2 bg-muted/50 rounded text-xs"
                       >
@@ -248,8 +269,8 @@ export function FundAgentModal({
                             #{i + 1}
                           </div>
                           <span className="font-mono">
-                            {sponsor.address === "0x_faucet_system" 
-                              ? "🚰 Faucet" 
+                            {sponsor.address === "0x_faucet_system"
+                              ? "🚰 Faucet"
                               : formatAddress(sponsor.address, 4)
                             }
                           </span>
@@ -269,9 +290,9 @@ export function FundAgentModal({
               )}
             </div>
           )}
-          
+
           <Separator />
-          
+
           {/* Transfer from connected wallet */}
           {connected ? (
             <div className="space-y-3">
@@ -282,7 +303,7 @@ export function FundAgentModal({
               <p className="text-xs text-muted-foreground">
                 Transfer APT directly from your connected wallet
               </p>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Amount:</span>
@@ -301,21 +322,26 @@ export function FundAgentModal({
                   <span>5 APT</span>
                 </div>
               </div>
-              
+
               {transferError && (
                 <div className="flex items-center gap-2 p-2 bg-comic-red/10 rounded-lg text-sm text-comic-red">
                   <AlertCircle className="h-4 w-4" />
                   {transferError}
                 </div>
               )}
-              
+
               {transferSuccess && (
-                <div className="flex items-center gap-2 p-2 bg-comic-green/10 rounded-lg text-sm text-comic-green">
-                  <CheckCircle className="h-4 w-4" />
-                  Transfer successful!
+                <div className="flex items-center gap-2 p-3 bg-comic-green/10 rounded-lg border-2 border-comic-green text-comic-green">
+                  <CheckCircle className="h-5 w-5" />
+                  <div>
+                    <div className="font-bold">Transfer successful!</div>
+                    <div className="text-xs text-muted-foreground">
+                      Check the transaction feed on the left
+                    </div>
+                  </div>
                 </div>
               )}
-              
+
               <Button
                 className="w-full gap-2"
                 variant="poker"
@@ -341,9 +367,9 @@ export function FundAgentModal({
               </p>
             </div>
           )}
-          
+
           <Separator />
-          
+
           {/* Wallet address */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Agent Wallet Address</label>
@@ -368,9 +394,9 @@ export function FundAgentModal({
               Or send APT to this address manually
             </p>
           </div>
-          
+
           <Separator />
-          
+
           {/* Testnet faucet */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Testnet Faucet</label>
@@ -391,7 +417,7 @@ export function FundAgentModal({
               {funding ? "Funding..." : "Fund from Faucet (1 APT)"}
             </Button>
           </div>
-          
+
           {/* Explorer link */}
           {walletAddress && (
             <a
@@ -436,7 +462,7 @@ export function AgentFundingCard({
 }: AgentFundingCardProps) {
   const model = agentId.replace("agent_", "") as AgentModel;
   const config = AGENT_CONFIGS[model];
-  
+
   return (
     <motion.div
       className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
@@ -445,19 +471,19 @@ export function AgentFundingCard({
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <Avatar 
+          <Avatar
             className="h-12 w-12 border-2"
             style={{ borderColor: config?.color || "#666" }}
           >
             <AvatarImage src={config?.avatar} alt={config?.name} />
-            <AvatarFallback 
+            <AvatarFallback
               style={{ backgroundColor: config?.color || "#666" }}
               className="text-white font-bold"
             >
               {config?.name?.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          
+
           <div>
             <h3 className="font-semibold font-comic">{config?.name}</h3>
             <p className="text-xs text-muted-foreground truncate max-w-[150px]">
@@ -465,7 +491,7 @@ export function AgentFundingCard({
             </p>
           </div>
         </div>
-        
+
         <FundAgentModal
           agentId={agentId}
           walletAddress={walletAddress}
@@ -475,7 +501,7 @@ export function AgentFundingCard({
           onFundSuccess={onFundSuccess}
         />
       </div>
-      
+
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
         <div className="p-2 bg-muted rounded">
           <div className="text-lg font-bold">
@@ -497,7 +523,7 @@ export function AgentFundingCard({
           <div className="text-xs text-muted-foreground">Win Rate</div>
         </div>
       </div>
-      
+
       {/* Sponsor count badge */}
       {(sponsorship?.sponsorCount || 0) > 0 && (
         <div className="mt-3 flex items-center gap-2 text-xs">
@@ -510,7 +536,7 @@ export function AgentFundingCard({
           </span>
         </div>
       )}
-      
+
       <p className="mt-3 text-xs text-muted-foreground line-clamp-2">
         {config?.personality}
       </p>
