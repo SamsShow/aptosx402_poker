@@ -56,6 +56,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   const [games, setGames] = useState<GameSummary[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isMounted = useRef(true);
@@ -119,16 +120,43 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
 
   const handleCreateGame = async () => {
     setCreating(true);
+    setLoadingStep(0);
+
+    const loadingSteps = [
+      "Shuffling deck...",
+      "Waking up agents...",
+      "Generating wallets...",
+      "Setting up table...",
+      "Ready to play!"
+    ];
+
+    // Animate through loading steps more slowly
+    const stepInterval = setInterval(() => {
+      setLoadingStep(prev => {
+        if (prev < loadingSteps.length - 1) return prev + 1;
+        return prev;
+      });
+    }, 1200); // Slower: 1.2 seconds per step
+
     try {
       // Pass connected wallet address as creator
       const creatorAddress = connected ? account?.address?.toString() : undefined;
       const gameId = await onCreateGame(creatorAddress);
       if (gameId) {
-        // Go directly to the game - funding can be done in-game
+        // Complete the animation smoothly
+        setLoadingStep(loadingSteps.length - 1);
+        await new Promise(resolve => setTimeout(resolve, 800));
+        // Go directly to the game
         onSelectGame(gameId);
       }
-    } finally {
+    } catch (err) {
+      console.error("Failed to create game:", err);
+      clearInterval(stepInterval);
       setCreating(false);
+      setLoadingStep(0);
+    } finally {
+      clearInterval(stepInterval);
+      // Don't reset creating/loadingStep here - let navigation handle it
     }
   };
 
@@ -139,6 +167,14 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   };
 
   // Manual refresh with indicator
+  const loadingMessages = [
+    "Shuffling deck...",
+    "Waking up agents...",
+    "Generating wallets...",
+    "Setting up table...",
+    "Ready to play!"
+  ];
+
   const handleManualRefresh = () => {
     fetchGames(true);
   };
@@ -169,6 +205,125 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
     return colors[stage] || "bg-muted";
   };
 
+  // Full-screen loading view (not a modal)
+  const LoadingView = () => (
+    <div className="min-h-screen bg-background halftone">
+      <div className="max-w-4xl mx-auto p-8">
+        {/* Keep the header */}
+        <motion.div
+          className="mb-12"
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 comic-border flex items-center justify-center comic-shadow overflow-hidden">
+                <Image
+                  src="/x402-logo.png"
+                  alt="x402 Poker Logo"
+                  width={64}
+                  height={64}
+                  className="object-contain"
+                />
+              </div>
+            </div>
+            <ConnectWalletButton />
+          </div>
+          <div className="text-center">
+            <h1 className="font-comic text-5xl mb-2">GAME LOBBY</h1>
+            <p className="text-muted-foreground font-bold">
+              Creating your game...
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Loading content - centered */}
+        <div className="flex items-center justify-center" style={{ minHeight: '60vh' }}>
+          <motion.div
+            className="text-center max-w-lg w-full"
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            {/* Animated poker chips */}
+            <div className="relative h-40 mb-12">
+              <motion.div
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 bg-comic-red comic-border rounded-full flex items-center justify-center font-comic text-white text-3xl"
+                animate={{
+                  y: [0, -15, 0],
+                  rotate: [0, 180, 360],
+                }}
+                transition={{
+                  duration: 2.5,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              >
+                ♠
+              </motion.div>
+              <motion.div
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 bg-comic-blue comic-border rounded-full flex items-center justify-center font-comic text-white text-3xl"
+                animate={{
+                  y: [0, -15, 0],
+                  rotate: [0, -180, -360],
+                }}
+                transition={{
+                  duration: 2.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 0.6
+                }}
+              >
+                ♥
+              </motion.div>
+            </div>
+
+            {/* Loading text with smooth fade */}
+            <motion.h2
+              className="font-comic text-4xl mb-8"
+              key={loadingStep}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+              {loadingMessages[loadingStep]}
+            </motion.h2>
+
+            {/* Step progress bar */}
+            <div className="flex justify-center gap-3 mb-6">
+              {loadingMessages.map((_, index) => (
+                <motion.div
+                  key={index}
+                  className={`h-3 rounded-full ${index <= loadingStep ? 'bg-comic-green' : 'bg-muted'
+                    }`}
+                  initial={false}
+                  animate={{
+                    width: index <= loadingStep ? 48 : 12,
+                    backgroundColor: index <= loadingStep
+                      ? 'hsl(var(--comic-green))'
+                      : 'hsl(var(--muted))'
+                  }}
+                  transition={{ duration: 0.5, ease: "easeInOut" }}
+                />
+              ))}
+            </div>
+
+            {/* Overall progress percentage */}
+            <p className="text-muted-foreground font-bold text-lg">
+              {Math.round(((loadingStep + 1) / loadingMessages.length) * 100)}% Complete
+            </p>
+          </motion.div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Show loading view instead of normal content when creating
+  if (creating) {
+    return <LoadingView />;
+  }
+
   return (
     <div className="min-h-screen bg-background halftone p-8">
       <div className="max-w-4xl mx-auto">
@@ -181,10 +336,10 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 comic-border flex items-center justify-center comic-shadow overflow-hidden">
-                <Image 
-                  src="/x402-logo.png" 
-                  alt="x402 Poker Logo" 
-                  width={64} 
+                <Image
+                  src="/x402-logo.png"
+                  alt="x402 Poker Logo"
+                  width={64}
                   height={64}
                   className="object-contain"
                 />
@@ -428,13 +583,13 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                               <TooltipTrigger asChild>
                                 <div
                                   className={`text-xs px-3 py-1 border-2 border-foreground cursor-help ${player.folded ? "bg-muted text-muted-foreground line-through" :
-                                      needsFunding && game.stage === "waiting" ? "bg-comic-orange/20 border-comic-orange" :
-                                        "bg-white"
+                                    needsFunding && game.stage === "waiting" ? "bg-comic-orange/20 border-comic-orange" :
+                                      "bg-white"
                                     }`}
                                 >
                                   <span className="font-bold">{player.name}</span>
                                   <span className={`ml-2 ${player.folded ? "text-muted-foreground" :
-                                      needsFunding ? "text-comic-orange" : "text-comic-green"
+                                    needsFunding ? "text-comic-orange" : "text-comic-green"
                                     }`}>
                                     {player.stack > 0 ? `${aptValue.toFixed(4)} APT` : "Not funded"}
                                   </span>
