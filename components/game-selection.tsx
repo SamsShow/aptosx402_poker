@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/connect-wallet-button";
 import {
@@ -205,7 +205,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
     return colors[stage] || "bg-muted";
   };
 
-  // Full-screen loading view (not a modal)
+  // Full-screen loading view with smooth, continuous animations
   const LoadingView = () => (
     <div className="min-h-screen bg-background halftone">
       <div className="max-w-4xl mx-auto p-8">
@@ -245,74 +245,100 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
-            {/* Animated poker chips */}
+            {/* Animated poker chips with continuous smooth rotation */}
             <div className="relative h-40 mb-12">
               <motion.div
-                className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 bg-comic-red comic-border rounded-full flex items-center justify-center font-comic text-white text-3xl"
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 bg-comic-red comic-border rounded-full flex items-center justify-center font-comic text-white text-3xl shadow-lg"
                 animate={{
-                  y: [0, -15, 0],
-                  rotate: [0, 180, 360],
+                  y: [0, -20, 0],
+                  rotate: 360,
                 }}
                 transition={{
-                  duration: 2.5,
-                  repeat: Infinity,
-                  ease: "easeInOut"
+                  y: {
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  },
+                  rotate: {
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }
                 }}
               >
                 ♠
               </motion.div>
               <motion.div
-                className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 bg-comic-blue comic-border rounded-full flex items-center justify-center font-comic text-white text-3xl"
+                className="absolute top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-comic-blue comic-border rounded-full flex items-center justify-center font-comic text-white text-3xl shadow-lg"
                 animate={{
-                  y: [0, -15, 0],
-                  rotate: [0, -180, -360],
+                  y: [0, -20, 0],
+                  rotate: -360,
                 }}
                 transition={{
-                  duration: 2.5,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                  delay: 0.6
+                  y: {
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.4
+                  },
+                  rotate: {
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "linear",
+                    delay: 0.4
+                  }
                 }}
               >
                 ♥
               </motion.div>
             </div>
 
-            {/* Loading text with smooth fade */}
-            <motion.h2
-              className="font-comic text-4xl mb-8"
-              key={loadingStep}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-            >
-              {loadingMessages[loadingStep]}
-            </motion.h2>
-
-            {/* Step progress bar */}
-            <div className="flex justify-center gap-3 mb-6">
-              {loadingMessages.map((_, index) => (
-                <motion.div
-                  key={index}
-                  className={`h-3 rounded-full ${index <= loadingStep ? 'bg-comic-green' : 'bg-muted'
-                    }`}
-                  initial={false}
-                  animate={{
-                    width: index <= loadingStep ? 48 : 12,
-                    backgroundColor: index <= loadingStep
-                      ? 'hsl(var(--comic-green))'
-                      : 'hsl(var(--muted))'
+            {/* Loading text with smooth crossfade - no stutter */}
+            <div className="relative h-16 mb-8">
+              <AnimatePresence mode="wait">
+                <motion.h2
+                  className="font-comic text-4xl absolute inset-0 flex items-center justify-center"
+                  key={loadingStep}
+                  initial={{ opacity: 0, y: 20, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -20, filter: "blur(4px)" }}
+                  transition={{
+                    duration: 0.8,
+                    ease: [0.4, 0, 0.2, 1] // Custom easing for ultra-smooth
                   }}
-                  transition={{ duration: 0.5, ease: "easeInOut" }}
-                />
-              ))}
+                >
+                  {loadingMessages[loadingStep]}
+                </motion.h2>
+              </AnimatePresence>
             </div>
 
-            {/* Overall progress percentage */}
-            <p className="text-muted-foreground font-bold text-lg">
+            {/* Continuous smooth progress bar - no discrete jumps */}
+            <div className="mb-6">
+              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-comic-blue via-comic-purple to-comic-green rounded-full"
+                  initial={{ width: "0%" }}
+                  animate={{
+                    width: `${((loadingStep + 1) / loadingMessages.length) * 100}%`
+                  }}
+                  transition={{
+                    duration: 1.0,
+                    ease: [0.4, 0, 0.2, 1] // Smooth easing
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Smooth percentage counter */}
+            <motion.p
+              className="text-muted-foreground font-bold text-lg"
+              key={loadingStep}
+              initial={{ opacity: 0.5 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5 }}
+            >
               {Math.round(((loadingStep + 1) / loadingMessages.length) * 100)}% Complete
-            </p>
+            </motion.p>
           </motion.div>
         </div>
       </div>
