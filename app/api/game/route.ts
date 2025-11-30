@@ -19,10 +19,33 @@ export async function POST(request: NextRequest) {
     // Get agent configurations
     const agents = (agentIds || Object.keys(AGENT_CONFIGS)).slice(0, 5);
 
-    // Generate a game ID first
-    const gameId = `game_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    // STEP 1: Create game state with temporary addresses (will update later)
+    const players = agents.map((agentId: string) => {
+      const config = AGENT_CONFIGS[agentId as keyof typeof AGENT_CONFIGS];
+      if (!config) {
+        throw new Error(`Unknown agent: ${agentId}`);
+      }
 
-    // STEP 1: Create per-game wallets FIRST
+      return {
+        id: config.id,
+        address: `0x${config.id.slice(-8).repeat(8)}`, // Temporary placeholder
+        name: config.name,
+        model: config.model,
+        avatar: config.avatar,
+      };
+    });
+
+    const gameState = createGame(players, {
+      smallBlind,
+      bigBlind,
+      // Don't pass walletBalances - start everyone at 0
+    });
+
+    // STEP 2: Register with coordinator FIRST (saves to database)
+    // This is required before creating wallets due to foreign key constraint
+    await gameCoordinator.registerGame(gameState, 0, smallBlind, bigBlind, creatorAddress);
+
+    // STEP 3: Now create per-game wallets (game exists in DB)
     let gameWallets: Array<{
       agentId: string;
       agentName: string;
@@ -43,11 +66,11 @@ export async function POST(request: NextRequest) {
       });
       const requiredAmount = bigBlind * 100 * 10_000; // 100 big blinds in octas
       gameWallets = await gameWalletManager.createGameWallets(
-        gameId,
+        gameState.gameId,
         agentIdList,
         requiredAmount
       );
-      console.log(`[API] Created ${gameWallets.length} game wallets for game ${gameId}`);
+      console.log(`[API] Created ${gameWallets.length} game wallets for game ${gameState.gameId}`);
     } catch (error) {
       console.error("[API] Failed to create game wallets:", error);
       return NextResponse.json(
@@ -56,41 +79,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 2: Build players using NEW per-game wallet addresses
-    const players = agents.map((agentId: string) => {
-      const config = AGENT_CONFIGS[agentId as keyof typeof AGENT_CONFIGS];
-      if (!config) {
-        throw new Error(`Unknown agent: ${agentId}`);
+    // STEP 4: Update game state with actual wallet addresses
+    gameState.players.forEach((player) => {
+      const wallet = gameWallets.find(w => w.agentId === player.id);
+      if (wallet) {
+        player.address = wallet.address;
       }
-
-      // Find the corresponding game wallet
-      const gameWallet = gameWallets.find(w => w.agentId === config.id);
-      if (!gameWallet) {
-        throw new Error(`No wallet found for agent ${config.id}`);
-      }
-
-      return {
-        id: config.id,
-        address: gameWallet.address, // Use per-game wallet address
-        name: config.name,
-        model: config.model,
-        avatar: config.avatar,
-      };
     });
 
-    // STEP 3: Create game state with 0 chips for all players
-    // Players must be funded explicitly before the game can start
-    const gameState = createGame(players, {
-      smallBlind,
-      bigBlind,
-      // Don't pass walletBalances - start everyone at 0
-    });
-
-    // Override the auto-generated gameId with our pre-generated one
-    gameState.gameId = gameId;
-
-    // STEP 4: Register with coordinator (saves to database with creator address)
-    // Note: buyIn parameter is now 0 since we use real balances
+    // Save updated game state with real addresses
     await gameCoordinator.registerGame(gameState, 0, smallBlind, bigBlind, creatorAddress);
 
     return NextResponse.json({
