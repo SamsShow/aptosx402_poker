@@ -18,11 +18,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { formatAddress } from "@/lib/utils";
-import { 
-  Wallet, 
-  LogOut, 
-  Copy, 
-  CheckCircle, 
+import {
+  Wallet,
+  LogOut,
+  Copy,
+  CheckCircle,
   ExternalLink,
   Loader2,
   ChevronDown
@@ -33,37 +33,37 @@ interface ConnectWalletButtonProps {
   variant?: "default" | "poker" | "outline" | "ghost";
 }
 
-export function ConnectWalletButton({ 
+export function ConnectWalletButton({
   className = "",
-  variant = "poker" 
+  variant = "poker"
 }: ConnectWalletButtonProps) {
-  const { 
-    connected, 
-    account, 
-    connect, 
+  const {
+    connected,
+    account,
+    connect,
     disconnect,
     wallet,
     isLoading: connecting,
   } = useWallet();
-  
+
   const [copied, setCopied] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [loadingBalance, setLoadingBalance] = useState(false);
-  
+
   // Fetch balance when connected
   useEffect(() => {
     if (!connected || !account?.address) {
       setBalance(null);
       return;
     }
-    
+
     const fetchBalance = async () => {
       setLoadingBalance(true);
       try {
         // Use API route to proxy through server-side (with API key)
         const res = await fetch(`/api/account/balance?address=${account.address.toString()}`);
         const data = await res.json();
-        
+
         if (data.success) {
           setBalance(data.balanceInAPT);
         } else {
@@ -76,14 +76,12 @@ export function ConnectWalletButton({
         setLoadingBalance(false);
       }
     };
-    
+
     fetchBalance();
-    // Refresh balance every 30 seconds
-    const interval = setInterval(fetchBalance, 30000);
-    
-    return () => clearInterval(interval);
+    // Removed auto-refresh - balance updates on reconnect or page refresh
+    // This prevents excessive API calls
   }, [connected, account?.address]);
-  
+
   const handleConnect = async () => {
     try {
       await connect("Petra");
@@ -91,7 +89,7 @@ export function ConnectWalletButton({
       console.error("Failed to connect:", error);
     }
   };
-  
+
   const handleDisconnect = async () => {
     try {
       await disconnect();
@@ -99,7 +97,7 @@ export function ConnectWalletButton({
       console.error("Failed to disconnect:", error);
     }
   };
-  
+
   const copyAddress = async () => {
     if (account?.address) {
       await navigator.clipboard.writeText(account.address.toString());
@@ -107,7 +105,7 @@ export function ConnectWalletButton({
       setTimeout(() => setCopied(false), 2000);
     }
   };
-  
+
   const openExplorer = () => {
     if (account?.address) {
       window.open(
@@ -160,14 +158,14 @@ export function ConnectWalletButton({
           <ChevronDown className="h-3 w-3 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      
+
       <DropdownMenuContent align="end" className="w-56">
         {/* Wallet info header */}
         <div className="px-3 py-2">
           <div className="flex items-center gap-2 mb-1">
-            <img 
-              src={wallet?.icon || "/avatars/wallet.png"} 
-              alt={wallet?.name || "Wallet"} 
+            <img
+              src={wallet?.icon || "/avatars/wallet.png"}
+              alt={wallet?.name || "Wallet"}
               className="w-5 h-5"
             />
             <span className="font-semibold text-sm">{wallet?.name}</span>
@@ -186,9 +184,9 @@ export function ConnectWalletButton({
             </p>
           ) : null}
         </div>
-        
+
         <DropdownMenuSeparator />
-        
+
         {/* Actions */}
         <DropdownMenuItem onClick={copyAddress} className="cursor-pointer">
           {copied ? (
@@ -198,16 +196,16 @@ export function ConnectWalletButton({
           )}
           {copied ? "Copied!" : "Copy Address"}
         </DropdownMenuItem>
-        
+
         <DropdownMenuItem onClick={openExplorer} className="cursor-pointer">
           <ExternalLink className="h-4 w-4 mr-2" />
           View on Explorer
         </DropdownMenuItem>
-        
+
         <DropdownMenuSeparator />
-        
-        <DropdownMenuItem 
-          onClick={handleDisconnect} 
+
+        <DropdownMenuItem
+          onClick={handleDisconnect}
           className="cursor-pointer text-comic-red focus:text-comic-red"
         >
           <LogOut className="h-4 w-4 mr-2" />

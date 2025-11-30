@@ -12,11 +12,11 @@ import {
 } from "@/components/ui/tooltip";
 import { useWallet } from "@aptos-labs/wallet-adapter-react";
 import { formatAddress } from "@/lib/utils";
-import { 
-  Play, 
-  Plus, 
-  RefreshCw, 
-  Users, 
+import {
+  Play,
+  Plus,
+  RefreshCw,
+  Users,
   Coins,
   Loader2,
   Gamepad2,
@@ -59,29 +59,29 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isMounted = useRef(true);
   const router = useRouter();
-  
+
   // Wallet connection
   const { connected, account } = useWallet();
-  
+
   // Default game settings
   const DEFAULT_BUY_IN = 1000;
 
   // Silent fetch that updates games without loading state
   const fetchGames = useCallback(async (showRefreshIndicator = false) => {
     if (showRefreshIndicator) setIsRefreshing(true);
-    
+
     try {
       const res = await fetch("/api/game");
       const data = await res.json();
-      
+
       if (!isMounted.current) return;
-      
+
       if (data.success) {
         // Limit displayed games and sort by newest first
         const sortedGames = (data.games as GameSummary[])
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
           .slice(0, MAX_GAMES_DISPLAY);
-        
+
         setGames(sortedGames);
         setError(null);
       } else {
@@ -107,13 +107,12 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   useEffect(() => {
     isMounted.current = true;
     fetchGames();
-    
-    // Auto-refresh every 5 seconds (silent, no loading indicator)
-    const interval = setInterval(() => fetchGames(false), 5000);
-    
+
+    // Removed auto-refresh - use manual refresh button to update
+    // This prevents excessive API calls and rate limiting
+
     return () => {
       isMounted.current = false;
-      clearInterval(interval);
     };
   }, [fetchGames]);
 
@@ -202,8 +201,8 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
           transition={{ delay: 0.1 }}
         >
           <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={handleManualRefresh}
               disabled={isRefreshing}
               className="gap-2"
@@ -211,9 +210,9 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
               Refresh
             </Button>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               onClick={() => router.push("/agents")}
               className="gap-2"
             >
@@ -221,9 +220,9 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
               Agents
             </Button>
           </div>
-          
-          <Button 
-            variant="call" 
+
+          <Button
+            variant="call"
             onClick={handleCreateGame}
             disabled={creating}
             className="gap-2"
@@ -270,8 +269,8 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
             <p className="text-muted-foreground font-bold mb-6">
               Create a new game to start playing
             </p>
-            <Button 
-              variant="call" 
+            <Button
+              variant="call"
               size="lg"
               onClick={handleCreateGame}
               disabled={creating}
@@ -318,7 +317,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-4">
                     {/* Stage badge with tooltip */}
                     <TooltipProvider>
@@ -342,7 +341,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    
+
                     {/* Pot with tooltip */}
                     <TooltipProvider>
                       <Tooltip>
@@ -360,7 +359,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    
+
                     {/* Players count with tooltip */}
                     <TooltipProvider>
                       <Tooltip>
@@ -378,10 +377,10 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                    
-                    <Button 
-                      variant="poker" 
-                      size="sm" 
+
+                    <Button
+                      variant="poker"
+                      size="sm"
                       className="gap-2"
                       onClick={(e) => handleJoinGame(game.gameId, e)}
                     >
@@ -390,7 +389,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                     </Button>
                   </div>
                 </div>
-                
+
                 {/* Player chips summary */}
                 {game.players && game.players.length > 0 && (
                   <div className="mt-4 pt-4 border-t-2 border-foreground">
@@ -415,23 +414,21 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                       {game.players.map((player) => {
                         const aptValue = (player.stack * 10000) / 100_000_000; // chips to APT
                         const needsFunding = player.stack < 100; // MIN_BALANCE_CHIPS
-                        
+
                         return (
                           <TooltipProvider key={player.id}>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <div
-                                  className={`text-xs px-3 py-1 border-2 border-foreground cursor-help ${
-                                    player.folded ? "bg-muted text-muted-foreground line-through" : 
-                                    needsFunding && game.stage === "waiting" ? "bg-comic-orange/20 border-comic-orange" :
-                                    "bg-white"
-                                  }`}
+                                  className={`text-xs px-3 py-1 border-2 border-foreground cursor-help ${player.folded ? "bg-muted text-muted-foreground line-through" :
+                                      needsFunding && game.stage === "waiting" ? "bg-comic-orange/20 border-comic-orange" :
+                                        "bg-white"
+                                    }`}
                                 >
                                   <span className="font-bold">{player.name}</span>
-                                  <span className={`ml-2 ${
-                                    player.folded ? "text-muted-foreground" : 
-                                    needsFunding ? "text-comic-orange" : "text-comic-green"
-                                  }`}>
+                                  <span className={`ml-2 ${player.folded ? "text-muted-foreground" :
+                                      needsFunding ? "text-comic-orange" : "text-comic-green"
+                                    }`}>
                                     {player.stack > 0 ? `${aptValue.toFixed(4)} APT` : "Not funded"}
                                   </span>
                                 </div>
@@ -439,11 +436,11 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
                               <TooltipContent side="top">
                                 <p className="font-bold">{player.name}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {player.folded 
-                                    ? "Folded this hand" 
+                                  {player.folded
+                                    ? "Folded this hand"
                                     : needsFunding && game.stage === "waiting"
-                                    ? "Needs funding to play"
-                                    : `${player.stack} chips (${aptValue.toFixed(4)} APT)`
+                                      ? "Needs funding to play"
+                                      : `${player.stack} chips (${aptValue.toFixed(4)} APT)`
                                   }
                                 </p>
                               </TooltipContent>
@@ -458,7 +455,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
             ))}
           </div>
         )}
-        
+
         {/* Info banner about funding */}
         <div className="mt-8 p-4 comic-card bg-comic-yellow/10 border-comic-yellow">
           <div className="flex items-start gap-3">
@@ -468,7 +465,7 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
             <div>
               <h3 className="font-bold mb-1">Real APT Gameplay</h3>
               <p className="text-sm text-muted-foreground">
-                Agents play with <strong>real APT tokens</strong> using the x402 protocol. 
+                Agents play with <strong>real APT tokens</strong> using the x402 protocol.
                 Before starting, fund agents via faucet or wallet transfer.
                 Winnings are distributed automatically at the end of each hand.
               </p>
