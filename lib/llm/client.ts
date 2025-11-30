@@ -1,12 +1,12 @@
 /**
- * GitHub Model API Client
+ * OpenRouter API Client
  * 
- * Provides access to various LLM models through GitHub's model API
- * Includes rate limiting to avoid 429 errors
+ * Provides access to various LLM models through OpenRouter's API
+ * Uses free tier models for cost-effective AI poker agents
  */
 
 import type { AgentModel } from "@/types";
-import { GITHUB_MODEL_ENDPOINTS } from "@/types/agents";
+import { OPENROUTER_MODEL_ENDPOINTS } from "@/types/agents";
 
 interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -31,12 +31,12 @@ interface ChatCompletionResponse {
   };
 }
 
-const GITHUB_API_URL = "https://models.github.ai/inference/chat/completions";
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 // Rate limiting configuration
-// GitHub Models has strict rate limits - space out requests
-const MIN_REQUEST_INTERVAL_MS = 3000; // Minimum 3 seconds between requests
+// OpenRouter free tier is more generous than GitHub Models
+const MIN_REQUEST_INTERVAL_MS = 1000; // Minimum 1 second between requests
 let lastRequestTime = 0;
 
 /**
@@ -105,7 +105,7 @@ async function createGeminiCompletion(
   };
 
   try {
-    console.log(`[LLM] ⚠️ Rate limit detected! Using Gemini fallback for ${originalModel} agent`);
+    console.log(`[LLM] ⚠️ Using Gemini fallback for ${originalModel} agent`);
     console.log(`[LLM] Gemini will act as ${originalModel} using the same personality and decision-making style`);
     const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: "POST",
@@ -141,7 +141,7 @@ async function createGeminiCompletion(
 }
 
 /**
- * Create a chat completion using GitHub Model API
+ * Create a chat completion using OpenRouter API
  */
 export async function createChatCompletion(
   options: ChatCompletionOptions
@@ -151,11 +151,13 @@ export async function createChatCompletion(
 
   const { model, messages, temperature = 0.7, maxTokens = 1000, responseFormat } = options;
 
-  const modelEndpoint = GITHUB_MODEL_ENDPOINTS[model];
+  const modelEndpoint = OPENROUTER_MODEL_ENDPOINTS[model];
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${process.env.GITHUB_TOKEN}`,
+    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+    "HTTP-Referer": "https://x402poker.app", // Required by OpenRouter
+    "X-Title": "x402 Poker", // App name for OpenRouter dashboard
   };
 
   const body: Record<string, unknown> = {
@@ -171,7 +173,7 @@ export async function createChatCompletion(
 
   try {
     console.log(`[LLM] Calling ${model} (${modelEndpoint})`);
-    const response = await fetch(GITHUB_API_URL, {
+    const response = await fetch(OPENROUTER_API_URL, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -189,7 +191,7 @@ export async function createChatCompletion(
         );
       }
 
-      throw new Error(`GitHub API error: ${response.status} - ${error}`);
+      throw new Error(`OpenRouter API error: ${response.status} - ${error}`);
     }
 
     const data = await response.json();
@@ -256,7 +258,7 @@ async function createDeepSeekCompletion(
   }
 
   try {
-    console.log(`[LLM] ⚠️ Rate limit detected! Using DeepSeek fallback for ${originalModel} agent`);
+    console.log(`[LLM] ⚠️ Using DeepSeek fallback for ${originalModel} agent`);
     const response = await fetch(DEEPSEEK_API_URL, {
       method: "POST",
       headers,
@@ -394,16 +396,15 @@ export function parseJsonResponse<T>(content: string): T {
 }
 
 /**
- * Check if the GitHub token is configured
+ * Check if the OpenRouter API key is configured
  */
 export function isConfigured(): boolean {
-  return !!process.env.GITHUB_TOKEN;
+  return !!process.env.OPENROUTER_API_KEY;
 }
 
 /**
  * Get available models
  */
 export function getAvailableModels(): AgentModel[] {
-  return Object.keys(GITHUB_MODEL_ENDPOINTS) as AgentModel[];
+  return Object.keys(OPENROUTER_MODEL_ENDPOINTS) as AgentModel[];
 }
-

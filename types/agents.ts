@@ -44,14 +44,14 @@ export const AGENT_CONFIGS: Record<AgentModel, AgentConfig> = {
   },
 };
 
-// GitHub Model API endpoints
-// Note: Using models available on GitHub Models (https://github.com/marketplace/models)
-export const GITHUB_MODEL_ENDPOINTS: Record<AgentModel, string> = {
-  claude: "anthropic/claude-3.5-sonnet",     // Claude 3.5 Sonnet
-  gpt4: "openai/gpt-4o",                      // GPT-4o
-  gemini: "google/gemini-2.5-flash",          // Gemini 2.5 Flash
-  deepseek: "deepseek/DeepSeek-V3-0324",      // DeepSeek V3
-  grok: "openai/gpt-4o-mini",                 // Fallback - Grok not available on GitHub Models
+// OpenRouter Model API endpoints
+// Note: Using free models available on OpenRouter (https://openrouter.ai/models)
+export const OPENROUTER_MODEL_ENDPOINTS: Record<AgentModel, string> = {
+  claude: "nvidia/nemotron-nano-12b-v2-vl:free",    // Nemotron Nano (Claude substitute)
+  gpt4: "kwaipilot/kat-coder-pro:free",             // Kat Coder Pro
+  gemini: "qwen/qwen3-coder:free",                  // Qwen3 Coder
+  deepseek: "tngtech/deepseek-r1t2-chimera:free",   // DeepSeek R1T2 Chimera
+  grok: "x-ai/grok-4.1-fast:free",                  // Grok 4.1 Fast
 };
 
 // System prompts for each agent personality
