@@ -16,10 +16,10 @@ export async function GET(
 ) {
   try {
     const { gameId } = await params;
-    
+
     // First check memory (active games)
     let gameState = gameCoordinator.getGame(gameId);
-    
+
     // If not in memory, try to load from database
     if (!gameState) {
       try {
@@ -27,10 +27,10 @@ export async function GET(
         if (dbGame && dbGame.gameState) {
           // Restore game state from database
           const restoredState = dbGame.gameState as unknown as typeof gameState;
-          
+
           if (restoredState) {
             gameState = restoredState;
-            
+
             // Register it back in memory so it's available
             const config = {
               buyIn: dbGame.buyIn || 1000,
@@ -50,18 +50,18 @@ export async function GET(
         console.error("[API] Error loading game from DB:", dbError);
       }
     }
-    
+
     if (!gameState) {
       return NextResponse.json(
         { error: "Game not found" },
         { status: 404 }
       );
     }
-    
+
     // Get associated thoughts and transactions
     let thoughts: ThoughtRecord[] = gameCoordinator.getThoughts(gameId);
     let transactions: TransactionRecord[] = gameCoordinator.getTransactions(gameId);
-    
+
     // If empty, try loading from database
     if (thoughts.length === 0) {
       try {
@@ -71,7 +71,7 @@ export async function GET(
         console.error("[API] Error loading thoughts from DB:", error);
       }
     }
-    
+
     if (transactions.length === 0) {
       try {
         const dbTransactions = await getTransactionsFromDB(gameId);
@@ -80,7 +80,36 @@ export async function GET(
         console.error("[API] Error loading transactions from DB:", error);
       }
     }
-    
+
+    // Fetch sponsor transactions for this game
+    try {
+      const { getGameSponsorships } = await import("@/lib/db/sponsorship-db");
+
+      const sponsorTxs = await getGameSponsorships(gameId);
+
+      // Convert sponsor transactions to TransactionRecord format
+      for (const sponsorTx of sponsorTxs) {
+        transactions.push({
+          id: `sponsor_${sponsorTx.id}`,
+          from: sponsorTx.sponsorAddress,
+          to: sponsorTx.agentId,
+          amount: sponsorTx.amount,
+          type: "sponsor",
+          status: "confirmed",
+          txHash: sponsorTx.txHash || undefined,
+          timestamp: sponsorTx.createdAt.toISOString(),
+        });
+      }
+
+      // Sort by timestamp (newest first)
+      transactions.sort((a, b) => {
+        const timeA = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : a.timestamp;
+        const timeB = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : b.timestamp;
+        return timeB - timeA;
+      });
+    } catch (error) {
+      console.error("[API] Error loading sponsor transactions:", error);
+    }
     return NextResponse.json({
       success: true,
       gameState,
@@ -103,7 +132,7 @@ export async function DELETE(
   try {
     const { gameId } = await params;
     gameCoordinator.endGame(gameId);
-    
+
     return NextResponse.json({
       success: true,
       message: "Game ended",

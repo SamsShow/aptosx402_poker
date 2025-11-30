@@ -32,7 +32,7 @@ interface ChatCompletionResponse {
 }
 
 const GITHUB_API_URL = "https://models.github.ai/inference/chat/completions";
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 // Rate limiting configuration
 // GitHub Models has strict rate limits - space out requests
@@ -45,13 +45,13 @@ let lastRequestTime = 0;
 async function waitForRateLimit(): Promise<void> {
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
-  
+
   if (timeSinceLastRequest < MIN_REQUEST_INTERVAL_MS) {
     const waitTime = MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest;
     console.log(`[LLM] Rate limiting: waiting ${waitTime}ms before next request`);
     await new Promise(resolve => setTimeout(resolve, waitTime));
   }
-  
+
   lastRequestTime = Date.now();
 }
 
@@ -66,19 +66,19 @@ async function createGeminiCompletion(
   if (!apiKey) {
     throw new Error("GOOGLE_AI_KEY not configured for Gemini fallback");
   }
-  
+
   const { messages, temperature = 0.7, maxTokens = 1000, responseFormat } = options;
-  
+
   // Convert messages to Gemini format
   // Combine system and user messages into a single prompt
   const systemMessage = messages.find(m => m.role === "system");
   const userMessages = messages.filter(m => m.role !== "system");
-  
+
   let prompt = "";
   if (systemMessage) {
     prompt = `${systemMessage.content}\n\n`;
   }
-  
+
   // Add user messages
   for (const msg of userMessages) {
     if (msg.role === "user") {
@@ -87,12 +87,12 @@ async function createGeminiCompletion(
       prompt += `Assistant: ${msg.content}\n\n`;
     }
   }
-  
+
   // Add JSON format instruction if needed
   if (responseFormat === "json_object") {
     prompt += "\n\nRespond ONLY with valid JSON, no other text.";
   }
-  
+
   const body = {
     contents: [{
       parts: [{ text: prompt }]
@@ -103,7 +103,7 @@ async function createGeminiCompletion(
       responseMimeType: responseFormat === "json_object" ? "application/json" : "text/plain",
     },
   };
-  
+
   try {
     console.log(`[LLM] ⚠️ Rate limit detected! Using Gemini fallback for ${originalModel} agent`);
     console.log(`[LLM] Gemini will act as ${originalModel} using the same personality and decision-making style`);
@@ -114,17 +114,17 @@ async function createGeminiCompletion(
       },
       body: JSON.stringify(body),
     });
-    
+
     if (!response.ok) {
       const error = await response.text();
       throw new Error(`Gemini API error: ${response.status} - ${error}`);
     }
-    
+
     const data = await response.json();
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    
+
     console.log(`[LLM] ✅ Gemini fallback responded successfully (acting as ${originalModel})`);
-    
+
     return {
       content,
       model: `gemini-2.0-flash-exp (fallback for ${originalModel})`,
@@ -148,27 +148,27 @@ export async function createChatCompletion(
 ): Promise<ChatCompletionResponse> {
   // Wait for rate limit before proceeding
   await waitForRateLimit();
-  
+
   const { model, messages, temperature = 0.7, maxTokens = 1000, responseFormat } = options;
-  
+
   const modelEndpoint = GITHUB_MODEL_ENDPOINTS[model];
-  
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "Authorization": `Bearer ${process.env.GITHUB_TOKEN}`,
   };
-  
+
   const body: Record<string, unknown> = {
     model: modelEndpoint,
     messages,
     temperature,
     max_tokens: maxTokens,
   };
-  
+
   if (responseFormat === "json_object") {
     body.response_format = { type: "json_object" };
   }
-  
+
   try {
     console.log(`[LLM] Calling ${model} (${modelEndpoint})`);
     const response = await fetch(GITHUB_API_URL, {
@@ -176,10 +176,10 @@ export async function createChatCompletion(
       headers,
       body: JSON.stringify(body),
     });
-    
+
     if (!response.ok) {
       const error = await response.text();
-      
+
       // Handle rate limit specifically
       if (response.status === 429) {
         const retryAfter = response.headers.get('retry-after');
@@ -188,13 +188,13 @@ export async function createChatCompletion(
           parseInt(retryAfter || '10', 10)
         );
       }
-      
+
       throw new Error(`GitHub API error: ${response.status} - ${error}`);
     }
-    
+
     const data = await response.json();
     console.log(`[LLM] ${model} responded successfully`);
-    
+
     return {
       content: data.choices[0]?.message?.content || "",
       model: data.model,
@@ -215,7 +215,7 @@ export async function createChatCompletion(
  */
 export class RateLimitError extends Error {
   retryAfterSeconds: number;
-  
+
   constructor(message: string, retryAfterSeconds: number) {
     super(message);
     this.name = 'RateLimitError';
@@ -223,8 +223,71 @@ export class RateLimitError extends Error {
   }
 }
 
+const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
+
 /**
- * Create a completion with retry logic and Gemini fallback
+ * Create a chat completion using DeepSeek API (fallback)
+ */
+async function createDeepSeekCompletion(
+  options: ChatCompletionOptions,
+  originalModel: AgentModel
+): Promise<ChatCompletionResponse> {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    throw new Error("DEEPSEEK_API_KEY not configured for DeepSeek fallback");
+  }
+
+  const { messages, temperature = 0.7, maxTokens = 1000, responseFormat } = options;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`,
+  };
+
+  const body: Record<string, unknown> = {
+    model: "deepseek-chat",
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+  };
+
+  if (responseFormat === "json_object") {
+    body.response_format = { type: "json_object" };
+  }
+
+  try {
+    console.log(`[LLM] ⚠️ Rate limit detected! Using DeepSeek fallback for ${originalModel} agent`);
+    const response = await fetch(DEEPSEEK_API_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`DeepSeek API error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    console.log(`[LLM] ✅ DeepSeek fallback responded successfully`);
+
+    return {
+      content: data.choices[0]?.message?.content || "",
+      model: `deepseek-chat (fallback for ${originalModel})`,
+      usage: data.usage ? {
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens,
+      } : undefined,
+    };
+  } catch (error) {
+    console.error(`[LLM] Error calling DeepSeek fallback:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Create a completion with retry logic and fallbacks
  */
 export async function createChatCompletionWithRetry(
   options: ChatCompletionOptions,
@@ -232,52 +295,74 @@ export async function createChatCompletionWithRetry(
 ): Promise<ChatCompletionResponse> {
   let lastError: Error | null = null;
   let usedFallback = false;
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await createChatCompletion(options);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       console.warn(`[LLM] Attempt ${attempt}/${maxRetries} failed:`, lastError.message);
-      
-      // If rate limited and we have Gemini fallback, use it immediately
-      if (error instanceof RateLimitError && process.env.GOOGLE_AI_KEY && !usedFallback) {
-        console.log(`[LLM] Rate limit hit for ${options.model}, falling back to Gemini...`);
-        try {
-          usedFallback = true;
-          return await createGeminiCompletion(options, options.model);
-        } catch (fallbackError) {
-          console.error(`[LLM] Gemini fallback also failed:`, fallbackError);
-          // Continue with normal retry logic
+
+      // If rate limited or model not found (404), try fallbacks immediately
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if ((error instanceof RateLimitError || errorMessage.includes("404")) && !usedFallback) {
+        // Try DeepSeek first (if configured and not the failing model)
+        if (process.env.DEEPSEEK_API_KEY && options.model !== "deepseek") {
+          console.log(`[LLM] Issue with ${options.model}, falling back to DeepSeek...`);
+          try {
+            usedFallback = true;
+            return await createDeepSeekCompletion(options, options.model);
+          } catch (fallbackError) {
+            console.error(`[LLM] DeepSeek fallback failed:`, fallbackError);
+            // Continue to Gemini fallback
+          }
+        }
+
+        // Try Gemini second (if configured)
+        if (process.env.GOOGLE_AI_KEY) {
+          console.log(`[LLM] Issue with ${options.model}, falling back to Gemini...`);
+          try {
+            usedFallback = true;
+            return await createGeminiCompletion(options, options.model);
+          } catch (fallbackError) {
+            console.error(`[LLM] Gemini fallback failed:`, fallbackError);
+          }
         }
       }
-      
+
       if (attempt < maxRetries) {
         // Handle rate limit errors with longer wait
         if (error instanceof RateLimitError) {
           const waitTime = Math.min(error.retryAfterSeconds * 1000, 60000); // Cap at 60 seconds
-          console.log(`[LLM] Rate limited. Waiting ${Math.floor(waitTime/1000)}s before retry...`);
+          console.log(`[LLM] Rate limited. Waiting ${Math.floor(waitTime / 1000)}s before retry...`);
           await new Promise((resolve) => setTimeout(resolve, waitTime));
         } else {
           // Exponential backoff for other errors (starting at 4s, then 8s)
           const backoffTime = Math.pow(2, attempt + 1) * 1000;
-          console.log(`[LLM] Waiting ${backoffTime/1000}s before retry...`);
+          console.log(`[LLM] Waiting ${backoffTime / 1000}s before retry...`);
           await new Promise((resolve) => setTimeout(resolve, backoffTime));
         }
       }
     }
   }
-  
-  // Final fallback to Gemini if all retries failed and we haven't tried it yet
-  if (!usedFallback && process.env.GOOGLE_AI_KEY) {
-    console.log(`[LLM] All retries failed for ${options.model}, using Gemini as final fallback...`);
-    try {
-      return await createGeminiCompletion(options, options.model);
-    } catch (fallbackError) {
-      console.error(`[LLM] Gemini fallback failed:`, fallbackError);
+
+  // Final fallback attempts if all retries failed
+  if (!usedFallback) {
+    if (process.env.DEEPSEEK_API_KEY) {
+      console.log(`[LLM] All retries failed, using DeepSeek as final fallback...`);
+      try {
+        return await createDeepSeekCompletion(options, options.model);
+      } catch (e) { console.error(e); }
+    }
+
+    if (process.env.GOOGLE_AI_KEY) {
+      console.log(`[LLM] All retries failed, using Gemini as final fallback...`);
+      try {
+        return await createGeminiCompletion(options, options.model);
+      } catch (e) { console.error(e); }
     }
   }
-  
+
   throw lastError || new Error("All retry attempts failed");
 }
 
@@ -287,19 +372,19 @@ export async function createChatCompletionWithRetry(
 export function parseJsonResponse<T>(content: string): T {
   // Try to extract JSON from the response
   let jsonStr = content.trim();
-  
+
   // Remove markdown code blocks if present
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (jsonMatch) {
     jsonStr = jsonMatch[1];
   }
-  
+
   // Try to find JSON object
   const objectMatch = jsonStr.match(/\{[\s\S]*\}/);
   if (objectMatch) {
     jsonStr = objectMatch[0];
   }
-  
+
   try {
     return JSON.parse(jsonStr) as T;
   } catch {

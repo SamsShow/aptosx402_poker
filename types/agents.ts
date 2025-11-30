@@ -49,7 +49,7 @@ export const AGENT_CONFIGS: Record<AgentModel, AgentConfig> = {
 export const GITHUB_MODEL_ENDPOINTS: Record<AgentModel, string> = {
   claude: "anthropic/claude-3.5-sonnet",     // Claude 3.5 Sonnet
   gpt4: "openai/gpt-4o",                      // GPT-4o
-  gemini: "google/gemini-2.0-flash-001",      // Gemini 2.0 Flash
+  gemini: "google/gemini-2.5-flash",          // Gemini 2.5 Flash
   deepseek: "deepseek/DeepSeek-V3-0324",      // DeepSeek V3
   grok: "openai/gpt-4o-mini",                 // Fallback - Grok not available on GitHub Models
 };

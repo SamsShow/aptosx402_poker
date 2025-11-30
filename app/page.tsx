@@ -6,11 +6,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlayingCard } from "@/components/poker/playing-card";
 import type { Card } from "@/types";
-import { 
-  Zap, 
-  Brain, 
-  Shield, 
-  Play, 
+import {
+  Zap,
+  Brain,
+  Shield,
+  Play,
   ExternalLink,
   ChevronRight,
   Sparkles,
@@ -47,7 +47,7 @@ const FEATURES = [
   },
   {
     icon: Coins,
-    title: "SPONSOR AGENTS",
+    title: "FUND AGENTS",
     description: "Fund your favorite AI player and watch them compete for real stakes.",
     color: "bg-comic-orange",
   },
@@ -65,16 +65,16 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background overflow-hidden">
       {/* Halftone background */}
       <div className="fixed inset-0 halftone pointer-events-none" />
-      
+
       {/* Header */}
       <header className="relative z-50 border-b-4 border-foreground bg-white">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 comic-border flex items-center justify-center comic-shadow overflow-hidden">
-              <Image 
-                src="/x402-logo.png" 
-                alt="x402 Poker Logo" 
-                width={48} 
+              <Image
+                src="/x402-logo.png"
+                alt="x402 Poker Logo"
+                width={48}
                 height={48}
                 className="object-contain"
               />
@@ -86,13 +86,13 @@ export default function LandingPage() {
               </p>
             </div>
           </div>
-          
+
           <nav className="flex items-center gap-4">
             <Link href="/agents" className="font-bold text-sm hover:text-comic-blue transition-colors">
               AGENTS
             </Link>
-            <a 
-              href="https://github.com/x402-poker" 
+            <a
+              href="https://github.com/x402-poker"
               target="_blank"
               rel="noopener noreferrer"
               className="font-bold text-sm hover:text-comic-blue transition-colors flex items-center gap-1"
@@ -115,7 +115,7 @@ export default function LandingPage() {
         <div className="absolute top-10 left-10 w-32 h-32 bg-comic-yellow comic-border comic-shadow rotate-12 opacity-50" />
         <div className="absolute bottom-20 right-20 w-24 h-24 bg-comic-red comic-border comic-shadow -rotate-6 opacity-50" />
         <div className="absolute top-1/2 right-1/4 w-16 h-16 bg-comic-blue comic-border rotate-45 opacity-30" />
-        
+
         <div className="max-w-6xl mx-auto text-center relative z-10">
           {/* Live badge - comic style */}
           <motion.div
@@ -149,10 +149,10 @@ export default function LandingPage() {
             transition={{ delay: 0.15, type: "spring", stiffness: 200, damping: 15 }}
           >
             <div className="w-32 h-32 md:w-40 md:h-40 comic-border comic-shadow overflow-hidden bg-white">
-              <Image 
-                src="/x402-logo.png" 
-                alt="x402 Poker Logo" 
-                width={160} 
+              <Image
+                src="/x402-logo.png"
+                alt="x402 Poker Logo"
+                width={160}
                 height={160}
                 className="object-contain w-full h-full"
               />
@@ -178,7 +178,7 @@ export default function LandingPage() {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            Watch 5 AI agents battle it out in Texas Hold&apos;em, settling bets 
+            Watch 5 AI agents battle it out in Texas Hold&apos;em, settling bets
             with <span className="text-comic-blue">x402 micropayments</span> on Aptos.
             Every thought signed. Every bet verified.
           </motion.p>
@@ -230,20 +230,20 @@ export default function LandingPage() {
             viewport={{ once: true }}
           >
             {/* Halftone on table */}
-            <div 
+            <div
               className="absolute inset-0 opacity-20"
               style={{
                 backgroundImage: `radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)`,
                 backgroundSize: '20px 20px'
               }}
             />
-            
+
             {/* Center logo */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-              <Image 
-                src="/x402-logo.png" 
-                alt="x402 Poker Logo" 
-                width={300} 
+              <Image
+                src="/x402-logo.png"
+                alt="x402 Poker Logo"
+                width={300}
                 height={300}
                 className="object-contain"
               />
@@ -254,20 +254,20 @@ export default function LandingPage() {
               {SAMPLE_COMMUNITY_CARDS.map((card, i) => (
                 <motion.div
                   key={i}
-                  initial={{ 
-                    opacity: 0, 
-                    y: -100, 
+                  initial={{
+                    opacity: 0,
+                    y: -100,
                     rotateY: 180,
-                    scale: 0.5 
+                    scale: 0.5
                   }}
-                  whileInView={{ 
-                    opacity: 1, 
-                    y: 0, 
+                  whileInView={{
+                    opacity: 1,
+                    y: 0,
                     rotateY: 0,
-                    scale: 1 
+                    scale: 1
                   }}
                   viewport={{ once: true, margin: "-100px" }}
-                  transition={{ 
+                  transition={{
                     delay: i * 0.2,
                     duration: 0.6,
                     type: "spring",
@@ -308,31 +308,31 @@ export default function LandingPage() {
                 { top: "60%", left: "85%", cardsTop: "50%" },  // Bottom right
               ];
               const pos = positions[i];
-              
+
               return (
                 <div key={agent.name}>
                   {/* Player Cards - Face Down */}
-                  <div 
+                  <div
                     className="absolute -translate-x-1/2 -translate-y-1/2 z-10 flex gap-1"
                     style={{ top: pos.cardsTop, left: pos.left }}
                   >
                     {[0, 1].map((cardIndex) => (
                       <motion.div
                         key={cardIndex}
-                        initial={{ 
-                          opacity: 0, 
+                        initial={{
+                          opacity: 0,
                           x: -50 + cardIndex * 20,
                           y: -100,
                           rotate: -10 + cardIndex * 5
                         }}
-                        whileInView={{ 
-                          opacity: 1, 
+                        whileInView={{
+                          opacity: 1,
                           x: 0,
                           y: 0,
                           rotate: 0
                         }}
                         viewport={{ once: true, margin: "-100px" }}
-                        transition={{ 
+                        transition={{
                           delay: i * 0.15 + cardIndex * 0.1,
                           duration: 0.5,
                           type: "spring",
@@ -357,22 +357,22 @@ export default function LandingPage() {
                     viewport={{ once: true, margin: "-100px" }}
                     transition={{ delay: i * 0.1 }}
                   >
-                    <div 
+                    <div
                       className="w-12 h-12 comic-border flex items-center justify-center font-comic text-white text-sm comic-shadow relative"
                       style={{ backgroundColor: agent.color }}
                     >
                       {agent.name.slice(0, 2).toUpperCase()}
-                      
+
                       {/* Pulsing glow for active player */}
                       {i === 0 && (
                         <motion.div
                           className="absolute inset-0 rounded-full"
                           style={{ backgroundColor: agent.color }}
-                          animate={{ 
+                          animate={{
                             scale: [1, 1.2, 1],
                             opacity: [0.5, 0.8, 0.5]
                           }}
-                          transition={{ 
+                          transition={{
                             duration: 1.5,
                             repeat: Infinity,
                             ease: "easeInOut"
@@ -465,7 +465,7 @@ export default function LandingPage() {
                 transition={{ delay: i * 0.1 }}
                 viewport={{ once: true }}
               >
-                <div 
+                <div
                   className="w-16 h-16 mx-auto comic-border flex items-center justify-center font-comic text-white text-xl comic-shadow mb-3"
                   style={{ backgroundColor: agent.color }}
                 >
@@ -483,14 +483,14 @@ export default function LandingPage() {
       {/* CTA Section */}
       <section className="py-20 px-6 bg-comic-blue border-y-4 border-foreground relative overflow-hidden">
         {/* Background pattern */}
-        <div 
+        <div
           className="absolute inset-0 opacity-10"
           style={{
             backgroundImage: `radial-gradient(circle, white 2px, transparent 2px)`,
             backgroundSize: '30px 30px'
           }}
         />
-        
+
         <div className="max-w-3xl mx-auto text-center relative z-10">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -520,10 +520,10 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 border-2 border-white flex items-center justify-center overflow-hidden">
-                <Image 
-                  src="/x402-logo.png" 
-                  alt="x402 Poker Logo" 
-                  width={40} 
+                <Image
+                  src="/x402-logo.png"
+                  alt="x402 Poker Logo"
+                  width={40}
                   height={40}
                   className="object-contain"
                 />
@@ -533,7 +533,7 @@ export default function LandingPage() {
                 <div className="text-xs text-white/60">Autonomous Agent Texas Hold&apos;em</div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-6 text-sm">
               <a href="https://x402.org" target="_blank" rel="noopener noreferrer" className="hover:text-comic-blue transition-colors">
                 x402 Protocol
@@ -545,7 +545,7 @@ export default function LandingPage() {
                 GitHub
               </a>
             </div>
-            
+
             <div className="text-xs text-white/60">
               Built with 💙 for the x402 Protocol
             </div>

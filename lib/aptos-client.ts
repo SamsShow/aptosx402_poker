@@ -56,6 +56,9 @@ const buildClientConfig = (): ClientConfig | undefined => {
   if (apiKey) {
     return {
       API_KEY: apiKey,
+      HEADERS: {
+        Authorization: `Bearer ${apiKey}`,
+      },
     };
   }
   return undefined;
@@ -65,12 +68,12 @@ const buildClientConfig = (): ClientConfig | undefined => {
 // Safe for both server and client side
 const buildAptosConfig = (): AptosConfig => {
   const network = getNetwork();
-  
+
   const isServer = typeof window === "undefined";
-  
+
   // Use API key only on server-side (for enhanced rate limits)
   const clientConfig = isServer ? buildClientConfig() : undefined;
-  
+
   // Use Geomi node URL on both client and server (better infrastructure)
   // API key is only added server-side in clientConfig
   const nodeUrl = getGeomiNodeUrl();
@@ -86,7 +89,7 @@ const buildAptosConfig = (): AptosConfig => {
       clientConfig, // API key only included server-side
     });
   }
-  
+
   // Default configuration (with API key on server-side only)
   return new AptosConfig({
     network,
@@ -103,7 +106,7 @@ function getAptosClient(): Aptos {
   if (typeof window !== "undefined") {
     throw new Error("aptosClient should only be used server-side. Use API routes for client-side operations.");
   }
-  
+
   if (!aptosClientInstance) {
     const config = buildAptosConfig();
     aptosClientInstance = new Aptos(config);
@@ -137,11 +140,11 @@ const logConfiguration = () => {
   if (typeof window !== "undefined") {
     return; // Client-side - skip logging
   }
-  
+
   const apiKey = getGeomiApiKey();
   const nodeUrl = getGeomiNodeUrl();
   const faucetUrl = getGeomiFaucetUrl();
-  
+
   if (apiKey) {
     const source = process.env.GEOMI_API_KEY ? 'GEOMI_API_KEY' : 'APTOS_API_KEY';
     console.log(`[Aptos] ✅ Geomi API key configured (from ${source}): ${apiKey.slice(0, 8)}...`);
@@ -174,10 +177,10 @@ export const GAME_CONTRACT_ADDRESS = process.env.GAME_CONTRACT_ADDRESS || "";
  */
 export function accountFromPrivateKey(privateKeyHex: string): Account {
   // Remove 0x prefix if present
-  const cleanKey = privateKeyHex.startsWith("0x") 
-    ? privateKeyHex.slice(2) 
+  const cleanKey = privateKeyHex.startsWith("0x")
+    ? privateKeyHex.slice(2)
     : privateKeyHex;
-  
+
   const privateKey = new Ed25519PrivateKey(cleanKey);
   return Account.fromPrivateKey({ privateKey });
 }
@@ -197,7 +200,7 @@ export async function getAccountBalance(address: string): Promise<bigint> {
   if (typeof window !== "undefined") {
     throw new Error("getAccountBalance can only be called server-side. Use /api/account/balance for client-side.");
   }
-  
+
   try {
     const balance = await aptosClient.getAccountAPTAmount({
       accountAddress: AccountAddress.from(address),
@@ -233,12 +236,12 @@ export async function viewPokerContract<T>(
   if (typeof window !== "undefined") {
     throw new Error("viewPokerContract can only be called server-side");
   }
-  
+
   const payload: InputViewFunctionData = {
     function: `${GAME_CONTRACT_ADDRESS}::poker::${functionName}`,
     functionArguments: args,
   };
-  
+
   const result = await aptosClient.view({ payload });
   return result[0] as T;
 }
@@ -327,10 +330,10 @@ export async function getStateNonce(
  */
 export function getExplorerUrl(txHash: string): string {
   // Use NEXT_PUBLIC_ env var if available (client-side), otherwise fall back to server-side
-  const networkEnv = typeof window !== "undefined" 
-    ? process.env.NEXT_PUBLIC_APTOS_NETWORK 
+  const networkEnv = typeof window !== "undefined"
+    ? process.env.NEXT_PUBLIC_APTOS_NETWORK
     : process.env.APTOS_NETWORK;
-  
+
   const network = networkEnv?.toLowerCase() || "testnet";
   const networkParam = network === "mainnet" ? "mainnet" : "testnet";
   return `https://explorer.aptoslabs.com/txn/${txHash}?network=${networkParam}`;
@@ -342,10 +345,10 @@ export function getExplorerUrl(txHash: string): string {
  */
 export function getAccountExplorerUrl(address: string): string {
   // Use NEXT_PUBLIC_ env var if available (client-side), otherwise fall back to server-side
-  const networkEnv = typeof window !== "undefined" 
-    ? process.env.NEXT_PUBLIC_APTOS_NETWORK 
+  const networkEnv = typeof window !== "undefined"
+    ? process.env.NEXT_PUBLIC_APTOS_NETWORK
     : process.env.APTOS_NETWORK;
-  
+
   const network = networkEnv?.toLowerCase() || "testnet";
   const networkParam = network === "mainnet" ? "mainnet" : "testnet";
   return `https://explorer.aptoslabs.com/account/${address}?network=${networkParam}`;
@@ -365,24 +368,24 @@ export async function fundFromFaucetAPI(address: string, amount = 100_000_000): 
   if (typeof window !== "undefined") {
     throw new Error("Faucet funding is server-side only");
   }
-  
+
   const network = getNetwork();
-  
+
   if (network === Network.MAINNET) {
     throw new Error("Faucet not available on mainnet");
   }
-  
+
   // Clean the address
   const cleanAddress = address.startsWith("0x") ? address : `0x${address}`;
-  
+
   console.log(`[Faucet] Attempting to fund ${cleanAddress} with ${amount} octas on ${network}`);
-  
+
   // Try Devnet faucet (works programmatically)
   if (network === Network.DEVNET) {
     try {
       const faucetUrl = `https://faucet.devnet.aptoslabs.com/mint?amount=${amount}&address=${cleanAddress}`;
       const response = await fetch(faucetUrl, { method: "POST" });
-      
+
       if (response.ok) {
         await new Promise(resolve => setTimeout(resolve, 2000));
         console.log(`[Faucet] ✅ Successfully funded ${cleanAddress} from Devnet faucet`);
@@ -398,7 +401,7 @@ export async function fundFromFaucetAPI(address: string, amount = 100_000_000): 
       );
     }
   }
-  
+
   // Testnet: No programmatic faucet available
   // Geomi is a node provider, not a faucet provider
   throw new Error(
@@ -419,21 +422,21 @@ async function tryFaucetEndpoint(faucetUrl: string, address: string, amount: num
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  
+
   // Add API key if available (Geomi)
   const apiKey = getGeomiApiKey();
   if (apiKey) {
     headers["X-API-KEY"] = apiKey;
     headers["Authorization"] = `Bearer ${apiKey}`;
   }
-  
+
   // Try /mint endpoint first (standard format)
   try {
     const mintResponse = await fetch(`${faucetUrl}/mint?amount=${amount}&address=${address}`, {
       method: "POST",
       headers,
     });
-    
+
     if (mintResponse.ok) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       console.log(`[Faucet] Successfully funded ${address} with ${amount} octas via ${faucetUrl}/mint`);
@@ -442,7 +445,7 @@ async function tryFaucetEndpoint(faucetUrl: string, address: string, amount: num
   } catch {
     // Try next format
   }
-  
+
   // Try /fund endpoint (alternative format)
   try {
     const fundResponse = await fetch(`${faucetUrl}/fund`, {
@@ -450,7 +453,7 @@ async function tryFaucetEndpoint(faucetUrl: string, address: string, amount: num
       headers,
       body: JSON.stringify({ address, amount }),
     });
-    
+
     if (fundResponse.ok) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       console.log(`[Faucet] Successfully funded ${address} with ${amount} octas via ${faucetUrl}/fund`);
@@ -459,7 +462,7 @@ async function tryFaucetEndpoint(faucetUrl: string, address: string, amount: num
   } catch {
     // Try next format
   }
-  
+
   return false;
 }
 

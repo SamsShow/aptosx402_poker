@@ -214,7 +214,7 @@ export function FundAgentModal({
             <div>
               Fund {config?.name}
               <p className="text-sm font-normal text-muted-foreground">
-                Sponsor this agent with APT
+                Fund this agent with APT
               </p>
             </div>
           </DialogTitle>
@@ -230,14 +230,14 @@ export function FundAgentModal({
               </span>
             </div>
             <div className="p-3 bg-muted rounded-lg">
-              <span className="text-xs text-muted-foreground block">Total Sponsored</span>
+              <span className="text-xs text-muted-foreground block">Total Funded</span>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-lg text-comic-green">
                   {((sponsorship?.totalFunded || 0) / 100_000_000).toFixed(2)} APT
                 </span>
                 {(sponsorship?.sponsorCount || 0) > 0 && (
                   <span className="text-xs text-muted-foreground">
-                    ({sponsorship?.sponsorCount} sponsors)
+                    ({sponsorship?.sponsorCount} funders)
                   </span>
                 )}
               </div>
@@ -252,7 +252,7 @@ export function FundAgentModal({
                 className="flex items-center gap-2 text-sm font-medium hover:text-comic-blue transition-colors"
               >
                 <Users className="h-4 w-4" />
-                {showSponsors ? "Hide Sponsors" : "Show Sponsors"}
+                {showSponsors ? "Hide Funders" : "Show Funders"}
                 <TrendingUp className="h-3 w-3 ml-auto" />
               </button>
 
@@ -529,7 +529,7 @@ export function AgentFundingCard({
         <div className="mt-3 flex items-center gap-2 text-xs">
           <Badge variant="outline" className="gap-1">
             <Users className="h-3 w-3" />
-            {sponsorship?.sponsorCount} sponsor{sponsorship?.sponsorCount !== 1 ? 's' : ''}
+            {sponsorship?.sponsorCount} funder{sponsorship?.sponsorCount !== 1 ? 's' : ''}
           </Badge>
           <span className="text-comic-green font-bold">
             {((sponsorship?.totalFunded || 0) / 100_000_000).toFixed(2)} APT received

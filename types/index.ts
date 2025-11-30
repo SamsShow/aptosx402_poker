@@ -83,16 +83,16 @@ export interface ThoughtRecord {
 // Transaction types
 export interface TransactionRecord {
   id: string;
-  gameId: string;
+  gameId?: string; // Optional for sponsor transactions
   from: string;
   to: string;
   amount: number;
   amountOctas?: number; // Amount in octas (real APT value)
-  type: "buy_in" | "bet" | "pot_win" | "refund" | "settlement";
-  txHash: string;
+  type: "buy_in" | "bet" | "pot_win" | "refund" | "settlement" | "sponsor";
+  txHash?: string; // Optional - not all transactions have a hash
   explorerUrl?: string; // Link to blockchain explorer
   facilitatorReceipt?: string;
-  timestamp: number;
+  timestamp: number | string; // Can be number or ISO string
   status: "pending" | "confirmed" | "failed";
   error?: string; // Error message if transaction failed
 }
@@ -119,7 +119,7 @@ export interface GameActionResponse {
 }
 
 // Hand evaluation types
-export type HandRank = 
+export type HandRank =
   | "high_card"
   | "pair"
   | "two_pair"
@@ -139,7 +139,7 @@ export interface HandEvaluation {
 }
 
 // Websocket event types
-export type WSEventType = 
+export type WSEventType =
   | "game_created"
   | "player_joined"
   | "game_started"

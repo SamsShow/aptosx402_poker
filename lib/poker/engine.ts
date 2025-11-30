@@ -32,15 +32,15 @@ export function createGame(
   const smallBlind = options.smallBlind || DEFAULT_SETTINGS.DEFAULT_SMALL_BLIND;
   const bigBlind = options.bigBlind || DEFAULT_SETTINGS.DEFAULT_BIG_BLIND;
   const walletBalances = options.walletBalances || {};
-  
+
   const now = Date.now();
-  
+
   // Initialize players with real balances from wallets (converted to chips)
   // If no wallet balance provided, stack starts at 0 (requires funding before game)
   const fullPlayers: Player[] = players.map((p, index) => {
     const balanceOctas = walletBalances[p.id] || 0;
     const stackChips = octasToChips(balanceOctas);
-    
+
     return {
       ...p,
       stack: stackChips,
@@ -52,7 +52,7 @@ export function createGame(
       isTurn: false,
     };
   });
-  
+
   return {
     gameId: generateGameId(),
     stage: "waiting",
@@ -87,13 +87,13 @@ export function updatePlayerStacks(
   const updatedPlayers = state.players.map((player) => {
     const balanceOctas = walletBalances[player.id] || 0;
     const stackChips = octasToChips(balanceOctas);
-    
+
     return {
       ...player,
       stack: stackChips,
     };
   });
-  
+
   return {
     ...state,
     players: updatedPlayers,
@@ -121,7 +121,7 @@ export function validatePlayerBalances(state: GameState): {
       stack: p.stack,
       required: minRequired,
     }));
-  
+
   return {
     valid: underfundedPlayers.length === 0,
     underfundedPlayers,
@@ -136,16 +136,26 @@ export function startHand(state: GameState, seed: string): GameState {
   // Create and shuffle deck
   const deck = createDeck();
   const shuffledDeck = shuffleDeck(deck, seed);
-  
+
   // Get active players
   const activePlayers = state.players.filter((p) => p.stack > 0);
+
+  // DEBUG LOGGING
+  console.log(`[GameEngine] Starting hand ${state.handNumber + 1}`);
+  console.log(`[GameEngine] Total players: ${state.players.length}`);
+  console.log(`[GameEngine] Active players (stack > 0): ${activePlayers.length}`);
+  console.log(`[GameEngine] Min players required: ${DEFAULT_SETTINGS.MIN_PLAYERS}`);
+  state.players.forEach(p => {
+    console.log(`[GameEngine] Player ${p.id} (${p.name}): stack=${p.stack}, folded=${p.folded}, isAllIn=${p.isAllIn}`);
+  });
+
   if (activePlayers.length < DEFAULT_SETTINGS.MIN_PLAYERS) {
     throw new Error("Not enough players with chips to start a hand");
   }
-  
+
   // Deal hole cards
   const { holeCards, remaining } = dealHoleCards(shuffledDeck, state.players.length);
-  
+
   // Update players with cards
   const players: Player[] = state.players.map((p, i) => ({
     ...p,
@@ -157,26 +167,26 @@ export function startHand(state: GameState, seed: string): GameState {
     isTurn: false,
     lastAction: undefined,
   }));
-  
+
   // Post blinds
   const sbIndex = getNextActiveIndex(players, state.dealerIndex);
   const bbIndex = getNextActiveIndex(players, sbIndex);
-  
+
   const sbAmount = Math.min(state.smallBlind, players[sbIndex].stack);
   const bbAmount = Math.min(state.bigBlind, players[bbIndex].stack);
-  
+
   players[sbIndex].stack -= sbAmount;
   players[sbIndex].bet = sbAmount;
   if (players[sbIndex].stack === 0) players[sbIndex].isAllIn = true;
-  
+
   players[bbIndex].stack -= bbAmount;
   players[bbIndex].bet = bbAmount;
   if (players[bbIndex].stack === 0) players[bbIndex].isAllIn = true;
-  
+
   // Set first player to act (UTG)
   const utgIndex = getNextActiveIndex(players, bbIndex);
   players[utgIndex].isTurn = true;
-  
+
   const newState: GameState = {
     ...state,
     stage: "preflop",
@@ -189,10 +199,10 @@ export function startHand(state: GameState, seed: string): GameState {
     handNumber: state.handNumber + 1,
     updatedAt: Date.now(),
   };
-  
+
   // Store remaining deck in state hash (for deterministic dealing)
   newState.stateHash = computeStateHash(newState, remaining);
-  
+
   return newState;
 }
 
@@ -209,43 +219,43 @@ export function processAction(
   if (playerIndex === -1) {
     throw new Error("Player not found");
   }
-  
+
   if (playerIndex !== state.currentPlayerIndex) {
     throw new Error("Not your turn");
   }
-  
+
   const player = state.players[playerIndex];
   if (player.folded) {
     throw new Error("Player has folded");
   }
-  
+
   // Validate action
   const validActions = getValidActions(state, playerId);
   if (!validActions.includes(action)) {
     throw new Error(`Invalid action: ${action}`);
   }
-  
+
   let newState = { ...state, players: [...state.players] };
   const newPlayer = { ...player };
   newState.players[playerIndex] = newPlayer;
-  
+
   const playerAction: PlayerAction = {
     type: action,
     amount: 0,
     timestamp: Date.now(),
   };
-  
+
   switch (action) {
     case ACTION_TYPES.FOLD:
       newPlayer.folded = true;
       break;
-      
+
     case ACTION_TYPES.CHECK:
       if (state.currentBet > player.bet) {
         throw new Error("Cannot check when there is a bet to call");
       }
       break;
-      
+
     case ACTION_TYPES.CALL:
       const callAmount = Math.min(state.currentBet - player.bet, player.stack);
       newPlayer.stack -= callAmount;
@@ -254,7 +264,7 @@ export function processAction(
       playerAction.amount = callAmount;
       if (newPlayer.stack === 0) newPlayer.isAllIn = true;
       break;
-      
+
     case ACTION_TYPES.BET:
       if (amount < state.bigBlind) {
         throw new Error(`Minimum bet is ${state.bigBlind}`);
@@ -269,11 +279,11 @@ export function processAction(
       playerAction.amount = amount;
       if (newPlayer.stack === 0) newPlayer.isAllIn = true;
       // Reset acted status for other players
-      newState.players = newState.players.map((p, i) => 
+      newState.players = newState.players.map((p, i) =>
         i === playerIndex ? p : { ...p, lastAction: p.folded || p.isAllIn ? p.lastAction : undefined }
       );
       break;
-      
+
     case ACTION_TYPES.RAISE:
       const raiseTotal = state.currentBet + amount;
       const raiseAmount = raiseTotal - player.bet;
@@ -290,11 +300,11 @@ export function processAction(
       playerAction.amount = raiseAmount;
       if (newPlayer.stack === 0) newPlayer.isAllIn = true;
       // Reset acted status for other players
-      newState.players = newState.players.map((p, i) => 
+      newState.players = newState.players.map((p, i) =>
         i === playerIndex ? p : { ...p, lastAction: p.folded || p.isAllIn ? p.lastAction : undefined }
       );
       break;
-      
+
     case ACTION_TYPES.ALL_IN:
       const allInAmount = player.stack;
       newPlayer.bet += allInAmount;
@@ -305,22 +315,22 @@ export function processAction(
       if (newPlayer.bet > state.currentBet) {
         newState.currentBet = newPlayer.bet;
         // Reset acted status for other players
-        newState.players = newState.players.map((p, i) => 
+        newState.players = newState.players.map((p, i) =>
           i === playerIndex ? p : { ...p, lastAction: p.folded || p.isAllIn ? p.lastAction : undefined }
         );
       }
       break;
   }
-  
+
   newPlayer.lastAction = playerAction;
   newPlayer.isTurn = false;
-  
+
   // Advance game
   newState = advanceGame(newState);
   newState.stateNonce++;
   newState.updatedAt = Date.now();
   newState.stateHash = computeStateHash(newState);
-  
+
   return newState;
 }
 
@@ -332,9 +342,9 @@ export function getValidActions(state: GameState, playerId: string): ActionType[
   if (!player || player.folded || player.isAllIn) {
     return [];
   }
-  
+
   const actions: ActionType[] = [ACTION_TYPES.FOLD];
-  
+
   if (state.currentBet === player.bet) {
     // No bet to call
     actions.push(ACTION_TYPES.CHECK);
@@ -348,11 +358,11 @@ export function getValidActions(state: GameState, playerId: string): ActionType[
       actions.push(ACTION_TYPES.RAISE);
     }
   }
-  
+
   if (player.stack > 0) {
     actions.push(ACTION_TYPES.ALL_IN);
   }
-  
+
   return actions;
 }
 
@@ -361,16 +371,16 @@ export function getValidActions(state: GameState, playerId: string): ActionType[
  */
 function advanceGame(state: GameState): GameState {
   let newState = { ...state };
-  
+
   // Check for winner by fold
   const activePlayers = newState.players.filter((p) => !p.folded);
   if (activePlayers.length === 1) {
     return endHand(newState, [activePlayers[0].id]);
   }
-  
+
   // Find next player to act
   const nextIndex = findNextPlayerToAct(newState);
-  
+
   if (nextIndex === -1) {
     // Round complete, advance stage
     newState = advanceStage(newState);
@@ -382,7 +392,7 @@ function advanceGame(state: GameState): GameState {
     }));
     newState.currentPlayerIndex = nextIndex;
   }
-  
+
   return newState;
 }
 
@@ -391,14 +401,14 @@ function advanceGame(state: GameState): GameState {
  */
 function findNextPlayerToAct(state: GameState): number {
   const startIndex = (state.currentPlayerIndex + 1) % state.players.length;
-  
+
   for (let i = 0; i < state.players.length; i++) {
     const index = (startIndex + i) % state.players.length;
     const player = state.players[index];
-    
+
     // Skip folded and all-in players
     if (player.folded || player.isAllIn) continue;
-    
+
     // Check if player needs to act
     // Player needs to act if:
     // 1. They haven't acted this round (no lastAction)
@@ -407,7 +417,7 @@ function findNextPlayerToAct(state: GameState): number {
       return index;
     }
   }
-  
+
   return -1; // No one needs to act
 }
 
@@ -416,7 +426,7 @@ function findNextPlayerToAct(state: GameState): number {
  */
 function advanceStage(state: GameState): GameState {
   const newState = { ...state };
-  
+
   // Reset bets for new round
   newState.players = newState.players.map((p) => ({
     ...p,
@@ -424,14 +434,14 @@ function advanceStage(state: GameState): GameState {
     lastAction: undefined,
   }));
   newState.currentBet = 0;
-  
+
   // Check if we should skip to showdown (all but one all-in)
   const canAct = newState.players.filter((p) => !p.folded && !p.isAllIn);
   if (canAct.length <= 1) {
     // Run out remaining community cards and go to showdown
     return runOutBoard(newState);
   }
-  
+
   switch (state.stage) {
     case "preflop":
       newState.stage = "flop";
@@ -454,7 +464,7 @@ function advanceStage(state: GameState): GameState {
     case "river":
       return goToShowdown(newState);
   }
-  
+
   // Set first player to act (first active after dealer)
   const firstToAct = getNextActiveIndex(newState.players, state.dealerIndex);
   newState.players = newState.players.map((p, i) => ({
@@ -462,7 +472,7 @@ function advanceStage(state: GameState): GameState {
     isTurn: i === firstToAct,
   }));
   newState.currentPlayerIndex = firstToAct;
-  
+
   return newState;
 }
 
@@ -474,17 +484,17 @@ function dealCommunityCardsForStage(state: GameState, stage: "flop" | "turn" | "
   // For now, generate deterministically from state hash
   const seed = `${state.stateHash}_${stage}_${state.handNumber}`;
   const deck = shuffleDeck(createDeck(), seed);
-  
+
   // Remove hole cards from consideration
   const usedCards = new Set(
     state.players.flatMap((p) => p.cards.map((c) => `${c.rank}${c.suit}`))
   );
   const availableDeck = deck.filter((c) => !usedCards.has(`${c.rank}${c.suit}`));
-  
+
   // Skip already dealt community cards
   const skipCount = state.communityCards.length;
   const burnAndDealStart = skipCount + 1; // +1 for burn card
-  
+
   if (stage === "flop") {
     return availableDeck.slice(burnAndDealStart, burnAndDealStart + 3);
   }
@@ -496,16 +506,16 @@ function dealCommunityCardsForStage(state: GameState, stage: "flop" | "turn" | "
  */
 function runOutBoard(state: GameState): GameState {
   let newState = { ...state };
-  
+
   while (newState.communityCards.length < 5) {
     const stage = newState.communityCards.length === 0 ? "flop" :
-                  newState.communityCards.length === 3 ? "turn" : "river";
+      newState.communityCards.length === 3 ? "turn" : "river";
     newState.communityCards = [
       ...newState.communityCards,
       ...dealCommunityCardsForStage(newState, stage),
     ];
   }
-  
+
   return goToShowdown(newState);
 }
 
@@ -514,7 +524,7 @@ function runOutBoard(state: GameState): GameState {
  */
 function goToShowdown(state: GameState): GameState {
   const newState = { ...state, stage: "showdown" as GameStage };
-  
+
   // Evaluate hands for non-folded players
   const contenders = newState.players
     .filter((p) => !p.folded)
@@ -522,10 +532,10 @@ function goToShowdown(state: GameState): GameState {
       id: p.id,
       hand: evaluateHand(p.cards, newState.communityCards),
     }));
-  
+
   const winners = determineWinners(contenders);
   const winnerIds = winners.map((w) => w.id);
-  
+
   return endHand(newState, winnerIds);
 }
 
@@ -534,7 +544,7 @@ function goToShowdown(state: GameState): GameState {
  */
 function endHand(state: GameState, winnerIds: string[]): GameState {
   const distribution = calculatePotDistribution(winnerIds, state.pot);
-  
+
   const newPlayers = state.players.map((p) => {
     const winnings = distribution.find((d) => d.playerId === p.id)?.amount || 0;
     return {
@@ -543,7 +553,7 @@ function endHand(state: GameState, winnerIds: string[]): GameState {
       isTurn: false,
     };
   });
-  
+
   return {
     ...state,
     stage: "settled",
@@ -584,7 +594,7 @@ function computeStateHash(state: GameState, extraData?: Card[]): string {
     })),
     extraData: extraData?.map((c) => `${c.rank}${c.suit}`),
   });
-  
+
   return hashString(stateString);
 }
 
@@ -594,7 +604,7 @@ function computeStateHash(state: GameState, extraData?: Card[]): string {
 export function prepareNextHand(state: GameState): GameState {
   // Rotate dealer
   const newDealerIndex = getNextActiveIndex(state.players, state.dealerIndex);
-  
+
   // Reset player states
   const newPlayers = state.players.map((p, i) => ({
     ...p,
@@ -606,7 +616,7 @@ export function prepareNextHand(state: GameState): GameState {
     isTurn: false,
     lastAction: undefined,
   }));
-  
+
   return {
     ...state,
     stage: "waiting",
