@@ -17,29 +17,29 @@ interface PokerLobbyProps {
 
 export function PokerLobby({ initialGameId }: PokerLobbyProps) {
   const [selectedGameId, setSelectedGameId] = useState<string | null>(initialGameId || null);
-  const { 
-    gameState, 
-    thoughts, 
+  const {
+    gameState,
+    thoughts,
     transactions,
     isLoading,
     error,
-    setGameState, 
+    setGameState,
     setThoughts,
     setTransactions,
     setConnected,
     setLoading,
     setError,
-    reset 
+    reset
   } = useGameStore();
 
   // Fetch game data
   const fetchGame = useCallback(async () => {
     if (!selectedGameId) return;
-    
+
     try {
       const res = await fetch(`/api/game/${selectedGameId}`);
       const data = await res.json();
-      
+
       if (data.success) {
         setGameState(data.gameState);
         if (data.thoughts) {
@@ -63,13 +63,13 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
   // Poll for game updates when a game is selected
   useEffect(() => {
     if (!selectedGameId) return;
-    
+
     // Initial fetch
     fetchGame();
-    
-    // Set up polling every 2 seconds
-    const interval = setInterval(fetchGame, 2000);
-    
+
+    // Set up polling every 10 seconds (reduced from 2s)
+    const interval = setInterval(fetchGame, 10000);
+
     return () => clearInterval(interval);
   }, [selectedGameId, fetchGame]);
 
@@ -89,7 +89,7 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
         }),
       });
       const data = await res.json();
-      
+
       if (data.success) {
         return data.gameId;
       } else {
@@ -119,7 +119,7 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
   // Show game selection if no game is selected
   if (!selectedGameId) {
     return (
-      <GameSelection 
+      <GameSelection
         onSelectGame={handleSelectGame}
         onCreateGame={createGame}
       />
@@ -132,11 +132,11 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
       <header className="flex-shrink-0 bg-white comic-border border-t-0 border-x-0 px-6 py-4 flex items-center justify-between relative">
         {/* Decorative zigzag bottom */}
         <div className="absolute bottom-0 left-0 right-0 h-2 bg-comic-yellow" />
-        
+
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleBackToLobby}
             className="gap-2"
           >
@@ -155,15 +155,14 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <div className="comic-badge bg-comic-green text-white px-4 py-2">
             Aptos Testnet
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 border-2 border-foreground ${
-              gameState ? "bg-comic-green animate-pulse" : "bg-comic-red"
-            }`} />
+            <div className={`w-3 h-3 border-2 border-foreground ${gameState ? "bg-comic-green animate-pulse" : "bg-comic-red"
+              }`} />
             <span className="font-bold text-sm">
               {gameState ? "LIVE" : "CONNECTING..."}
             </span>
@@ -222,7 +221,7 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
                 backgroundSize: '50px 50px'
               }} />
             </div>
-            
+
             {/* Poker table container - fixed at top */}
             <div className="absolute inset-0 flex items-start justify-center pt-12 px-12 pb-12">
               <PokerTable gameState={gameState} />

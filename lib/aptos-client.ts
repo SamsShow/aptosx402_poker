@@ -94,10 +94,42 @@ const buildAptosConfig = (): AptosConfig => {
   });
 };
 
-// Initialize Aptos client with configuration
-// Safe for both server and client - API keys only used server-side
-const config = buildAptosConfig();
-export const aptosClient = new Aptos(config);
+// Lazy initialization of Aptos client to avoid calling getChainId() on client-side
+// getChainId() is called during initialization and makes an API call
+let aptosClientInstance: Aptos | null = null;
+
+function getAptosClient(): Aptos {
+  // Only initialize on server-side to avoid client-side API calls
+  if (typeof window !== "undefined") {
+    throw new Error("aptosClient should only be used server-side. Use API routes for client-side operations.");
+  }
+  
+  if (!aptosClientInstance) {
+    const config = buildAptosConfig();
+    aptosClientInstance = new Aptos(config);
+  }
+  return aptosClientInstance;
+}
+
+// Export as a getter to delay initialization
+// Only initialize on server-side - client-side should use API routes
+export const aptosClient = new Proxy({} as Aptos, {
+  get(_target, prop) {
+    // Prevent any access on client-side
+    if (typeof window !== "undefined") {
+      throw new Error(
+        "aptosClient cannot be used on client-side. " +
+        "Use API routes (e.g., /api/account/balance) for client-side operations."
+      );
+    }
+    const client = getAptosClient();
+    const value = client[prop as keyof Aptos];
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
+  }
+});
 
 // Log configuration on startup (server-side only)
 const logConfiguration = () => {
@@ -161,6 +193,11 @@ export function generateAccount(): Account {
  * Get account APT balance in octas
  */
 export async function getAccountBalance(address: string): Promise<bigint> {
+  // Server-side only - this uses aptosClient
+  if (typeof window !== "undefined") {
+    throw new Error("getAccountBalance can only be called server-side. Use /api/account/balance for client-side.");
+  }
+  
   try {
     const balance = await aptosClient.getAccountAPTAmount({
       accountAddress: AccountAddress.from(address),
@@ -192,6 +229,11 @@ export async function viewPokerContract<T>(
   functionName: string,
   args: (string | number | boolean)[] = []
 ): Promise<T> {
+  // Server-side only - this uses aptosClient
+  if (typeof window !== "undefined") {
+    throw new Error("viewPokerContract can only be called server-side");
+  }
+  
   const payload: InputViewFunctionData = {
     function: `${GAME_CONTRACT_ADDRESS}::poker::${functionName}`,
     functionArguments: args,

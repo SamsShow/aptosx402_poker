@@ -31,8 +31,8 @@ export async function GET(
       await walletManager.initialize();
     }
     
-    // Fetch real-time wallet balances for all players
-    const walletInfos = await walletManager.getAllWalletInfos();
+    // Fetch real-time wallet balances for all players (use cache to avoid rate limits)
+    const walletInfos = await walletManager.getAllWalletInfos(false);
     
     // Build response with current balances
     const playerBalances = gameState.players.map((player) => {
@@ -115,8 +115,8 @@ export async function POST(
       await walletManager.initialize();
     }
     
-    // Fetch real-time wallet balances
-    const walletInfos = await walletManager.getAllWalletInfos();
+    // Fetch real-time wallet balances (force refresh on POST)
+    const walletInfos = await walletManager.getAllWalletInfos(true);
     
     // Build wallet balances map (in octas)
     const walletBalances: Record<string, number> = {};

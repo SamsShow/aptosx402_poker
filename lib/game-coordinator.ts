@@ -14,6 +14,7 @@ import { chipsToOctas } from "@/lib/poker/constants";
 import { generateGameId } from "@/lib/utils";
 import { saveGame, saveHand, saveAction, saveThought, saveTransaction } from "@/lib/db/game-db";
 import { walletManager } from "@/lib/wallet-manager";
+import { gameWalletManager } from "@/lib/game-wallet-manager";
 import { transfer, getExplorerUrl, createAccountFromPrivateKey } from "@/lib/x402";
 
 interface GameSession {
@@ -56,14 +57,14 @@ class GameCoordinator {
   private games: Map<string, GameSession> = new Map();
   private globalListeners: Set<(event: GameEvent) => void> = new Set();
   private gameConfigs: Map<string, { buyIn: number; smallBlind: number; bigBlind: number }> = new Map();
-  
+
   /**
    * Register a new game
    */
   async registerGame(
-    state: GameState, 
-    buyIn = 1000, 
-    smallBlind = 5, 
+    state: GameState,
+    buyIn = 1000,
+    smallBlind = 5,
     bigBlind = 10,
     creatorAddress?: string
   ): Promise<void> {
@@ -71,7 +72,7 @@ class GameCoordinator {
     if (creatorAddress) {
       state.creatorAddress = creatorAddress;
     }
-    
+
     this.games.set(state.gameId, {
       state,
       thoughts: [],
@@ -79,10 +80,10 @@ class GameCoordinator {
       history: [],
       listeners: new Set(),
     });
-    
+
     // Store game config
     this.gameConfigs.set(state.gameId, { buyIn, smallBlind, bigBlind });
-    
+
     // Save to database
     try {
       await saveGame(state, buyIn, smallBlind, bigBlind, creatorAddress);
@@ -95,7 +96,7 @@ class GameCoordinator {
         console.error("[Coordinator] DB Error details:", error.message);
       }
     }
-    
+
     this.broadcast({
       type: "game_created",
       gameId: state.gameId,
@@ -103,14 +104,14 @@ class GameCoordinator {
       timestamp: Date.now(),
     });
   }
-  
+
   /**
    * Get game state
    */
   getGame(gameId: string): GameState | null {
     return this.games.get(gameId)?.state || null;
   }
-  
+
   /**
    * Get all active games (excludes settled games)
    */
@@ -119,7 +120,7 @@ class GameCoordinator {
       .map((session) => session.state)
       .filter((state) => state.stage !== "settled");
   }
-  
+
   /**
    * Get all games (including settled ones)
    */
@@ -127,35 +128,35 @@ class GameCoordinator {
     return Array.from(this.games.values())
       .map((session) => session.state);
   }
-  
+
   /**
    * Get thoughts for a game
    */
   getThoughts(gameId: string): ThoughtRecord[] {
     return this.games.get(gameId)?.thoughts || [];
   }
-  
+
   /**
    * Get transactions for a game
    */
   getTransactions(gameId: string): TransactionRecord[] {
     return this.games.get(gameId)?.transactions || [];
   }
-  
+
   /**
    * Get hand history
    */
   getHistory(gameId: string, handNumber?: number): HandHistory[] | HandHistory | null {
     const session = this.games.get(gameId);
     if (!session) return null;
-    
+
     if (handNumber !== undefined) {
       return session.history.find((h) => h.handNumber === handNumber) || null;
     }
-    
+
     return session.history;
   }
-  
+
   /**
    * Start a new hand
    */
@@ -164,20 +165,20 @@ class GameCoordinator {
     if (!session) {
       return { success: false, error: "Game not found" };
     }
-    
+
     try {
       // Generate seed if not provided
       const handSeed = seed || generateRandomSeed();
-      
+
       // If current hand is settled, prepare for next hand
       if (session.state.stage === "settled" || session.state.stage === "waiting") {
         if (session.state.stage === "settled") {
           session.state = prepareNextHand(session.state);
         }
-        
+
         // Start new hand
         const newState = startHand(session.state, handSeed);
-        
+
         // Save start state for history
         const handHistory: HandHistory = {
           handNumber: newState.handNumber,
@@ -187,14 +188,14 @@ class GameCoordinator {
           winners: [],
         };
         session.history.push(handHistory);
-        
+
         // Save hand to database
         try {
           await saveHand(gameId, newState.handNumber, newState, newState, newState.pot);
         } catch (error) {
           console.error("[Coordinator] Failed to save hand to DB:", error);
         }
-        
+
         // Update game in database
         try {
           const config = this.gameConfigs.get(gameId) || { buyIn: 1000, smallBlind: 5, bigBlind: 10 };
@@ -202,28 +203,28 @@ class GameCoordinator {
         } catch (error) {
           console.error("[Coordinator] Failed to update game in DB:", error);
         }
-        
+
         session.state = newState;
-        
+
         this.broadcast({
           type: "game_started",
           gameId,
           payload: newState,
           timestamp: Date.now(),
         });
-        
+
         return { success: true, newState };
       }
-      
+
       return { success: false, error: "Game already in progress" };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : "Failed to start hand" 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to start hand"
       };
     }
   }
-  
+
   /**
    * Process a player action
    */
@@ -239,23 +240,23 @@ class GameCoordinator {
     if (!session) {
       return { success: false, error: "Game not found" };
     }
-    
+
     try {
       // Process the action
       const newState = processAction(session.state, playerId, action, amount);
-      
+
       // Record thought
       let actionId: string | undefined;
       if (thought) {
         session.thoughts.unshift(thought);
-        
+
         // Save thought to database
         try {
           await saveThought(thought, actionId);
         } catch (error) {
           console.error("[Coordinator] Failed to save thought to DB:", error);
         }
-        
+
         this.broadcast({
           type: "thought_broadcast",
           gameId,
@@ -263,7 +264,7 @@ class GameCoordinator {
           timestamp: Date.now(),
         });
       }
-      
+
       // Record transaction if there was a bet
       // Note: Actual APT transfers happen at settlement, not during betting
       // This avoids excessive gas costs and maintains game flow
@@ -281,14 +282,14 @@ class GameCoordinator {
           status: "pending", // Pending until hand settles
         };
         session.transactions.unshift(tx);
-        
+
         // Save transaction to database
         try {
           await saveTransaction(tx);
         } catch (error) {
           console.error("[Coordinator] Failed to save transaction to DB:", error);
         }
-        
+
         this.broadcast({
           type: "transaction_recorded",
           gameId,
@@ -296,7 +297,7 @@ class GameCoordinator {
           timestamp: Date.now(),
         });
       }
-      
+
       // Update history
       const currentHistory = session.history[session.history.length - 1];
       if (currentHistory) {
@@ -311,7 +312,7 @@ class GameCoordinator {
             thought?.stateHash || null,
             currentHistory.actions.length
           );
-          
+
           // Update thought with actionId if we have one
           if (thought && actionId) {
             await saveThought(thought, actionId);
@@ -319,7 +320,7 @@ class GameCoordinator {
         } catch (error) {
           console.error("[Coordinator] Failed to save action to DB:", error);
         }
-        
+
         currentHistory.actions.push({
           playerId,
           action,
@@ -329,7 +330,7 @@ class GameCoordinator {
         });
         currentHistory.endState = newState;
       }
-      
+
       // Update game state in database
       try {
         const config = this.gameConfigs.get(gameId) || { buyIn: 1000, smallBlind: 5, bigBlind: 10 };
@@ -337,10 +338,10 @@ class GameCoordinator {
       } catch (error) {
         console.error("[Coordinator] Failed to update game in DB:", error);
       }
-      
+
       // Update state
       session.state = newState;
-      
+
       // Broadcast action
       this.broadcast({
         type: "action_taken",
@@ -353,7 +354,7 @@ class GameCoordinator {
         },
         timestamp: Date.now(),
       });
-      
+
       // Check for stage change
       if (newState.stage !== session.state.stage) {
         this.broadcast({
@@ -367,20 +368,20 @@ class GameCoordinator {
           timestamp: Date.now(),
         });
       }
-      
+
       // Check for game end
       if (newState.stage === "settled" || newState.stage === "showdown") {
         const winners = newState.players
           .filter((p) => !p.folded)
           .map((p) => p.id);
-        
+
         if (currentHistory) {
           currentHistory.winners = winners;
           currentHistory.endState = newState;
-          
+
           // Execute real APT transfers for pot distribution via x402
           await this.settleHandWithX402(gameId, currentHistory, newState, winners);
-          
+
           // Update hand in database with final state
           try {
             const handId = `hand_${gameId}_${currentHistory.handNumber}`;
@@ -396,7 +397,7 @@ class GameCoordinator {
             console.error("[Coordinator] Failed to update hand in DB:", error);
           }
         }
-        
+
         this.broadcast({
           type: "winner_declared",
           gameId,
@@ -407,16 +408,16 @@ class GameCoordinator {
           timestamp: Date.now(),
         });
       }
-      
+
       return { success: true, newState };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : "Failed to process action" 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to process action"
       };
     }
   }
-  
+
   /**
    * Settle a hand with real APT transfers via x402 protocol
    * 
@@ -431,59 +432,73 @@ class GameCoordinator {
   ): Promise<void> {
     const session = this.games.get(gameId);
     if (!session) return;
-    
+
     // Ensure wallet manager is initialized
     if (!walletManager.isInitialized()) {
       await walletManager.initialize();
     }
-    
+
     // Calculate total pot and distribution
     // The pot represents chips; we need to convert to octas for real transfers
-    const potChips = history.startState.pot + 
+    const potChips = history.startState.pot +
       history.actions.reduce((sum, a) => sum + (a.amount || 0), 0);
     const potOctas = chipsToOctas(potChips);
-    
+
     if (potOctas === 0 || winnerIds.length === 0) {
       console.log("[Coordinator] No pot to distribute or no winners");
       return;
     }
-    
+
     // Calculate winnings per winner
     const winningsPerWinner = Math.floor(potOctas / winnerIds.length);
-    
+
     // Get losers (players who contributed to pot but didn't win)
     const losers = history.actions
       .filter(a => a.amount > 0 && !winnerIds.includes(a.playerId))
       .map(a => ({ playerId: a.playerId, amount: chipsToOctas(a.amount) }));
-    
+
     // For now, we'll track the transfers but may not execute all of them
     // to avoid excessive gas costs. Instead, we record them for transparency.
     // In a production system, you might use a smart contract escrow.
-    
+
     console.log(`[Coordinator] Settling hand - Pot: ${potOctas} octas, Winners: ${winnerIds.join(', ')}`);
-    
+
+    // Check if game has per-game wallets
+    const gameWallets = await gameWalletManager.getGameWalletInfos(gameId).catch(() => []);
+    const hasGameWallets = gameWallets.length > 0;
+
+    console.log(`[Coordinator] Using ${hasGameWallets ? 'per-game' : 'global'} wallets for settlement`);
+
     // Execute transfers from each loser to winners (proportionally)
     for (const loser of losers) {
-      const loserWallet = walletManager.getWallet(loser.playerId);
+      // Try to get per-game wallet first, fall back to global wallet
+      let loserWallet;
+      if (hasGameWallets) {
+        loserWallet = await gameWalletManager.getWallet(gameId, loser.playerId);
+      }
+      if (!loserWallet) {
+        loserWallet = walletManager.getWallet(loser.playerId);
+      }
+
       if (!loserWallet) {
         console.warn(`[Coordinator] No wallet found for loser ${loser.playerId}`);
         continue;
       }
-      
+
       // Each loser transfers their bet amount to winners proportionally
       const amountPerWinner = Math.floor(loser.amount / winnerIds.length);
       if (amountPerWinner === 0) continue;
-      
+
       for (const winnerId of winnerIds) {
         const winnerAddress = finalState.players.find(p => p.id === winnerId)?.address;
         if (!winnerAddress) continue;
-        
+
         try {
           // Execute actual APT transfer via x402
           const receipt = await transfer(loserWallet, winnerAddress, amountPerWinner);
-          
+
           console.log(`[Coordinator] x402 Transfer: ${loser.playerId} -> ${winnerId}: ${amountPerWinner} octas (tx: ${receipt.txHash})`);
-          
+
           // Record the settlement transaction
           const settlementTx: TransactionRecord = {
             id: `settle_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -498,16 +513,16 @@ class GameCoordinator {
             timestamp: Date.now(),
             status: "confirmed",
           };
-          
+
           session.transactions.unshift(settlementTx);
-          
+
           // Save to database
           try {
             await saveTransaction(settlementTx);
           } catch (error) {
             console.error("[Coordinator] Failed to save settlement tx to DB:", error);
           }
-          
+
           // Broadcast the settlement
           this.broadcast({
             type: "x402_transfer_complete",
@@ -521,10 +536,10 @@ class GameCoordinator {
             },
             timestamp: Date.now(),
           });
-          
+
         } catch (error) {
           console.error(`[Coordinator] x402 transfer failed: ${loser.playerId} -> ${winnerId}:`, error);
-          
+
           // Record failed transfer
           const failedTx: TransactionRecord = {
             id: `settle_failed_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -539,15 +554,15 @@ class GameCoordinator {
             status: "failed",
             error: error instanceof Error ? error.message : "Transfer failed",
           };
-          
+
           session.transactions.unshift(failedTx);
         }
       }
     }
-    
+
     console.log(`[Coordinator] Hand settlement complete for game ${gameId}`);
   }
-  
+
   /**
    * End a game
    */
@@ -560,11 +575,11 @@ class GameCoordinator {
         payload: { finalState: session.state },
         timestamp: Date.now(),
       });
-      
+
       this.games.delete(gameId);
     }
   }
-  
+
   /**
    * Subscribe to game events
    */
@@ -574,9 +589,9 @@ class GameCoordinator {
       session.listeners.add(listener);
       return () => session.listeners.delete(listener);
     }
-    return () => {};
+    return () => { };
   }
-  
+
   /**
    * Subscribe to all events
    */
@@ -584,7 +599,7 @@ class GameCoordinator {
     this.globalListeners.add(listener);
     return () => this.globalListeners.delete(listener);
   }
-  
+
   /**
    * Broadcast an event
    */
@@ -600,7 +615,7 @@ class GameCoordinator {
         }
       });
     }
-    
+
     // Notify global listeners
     this.globalListeners.forEach((listener) => {
       try {

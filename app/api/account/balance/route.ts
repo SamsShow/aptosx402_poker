@@ -7,6 +7,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+
+// Mark as dynamic to allow searchParams
+export const dynamic = 'force-dynamic';
 import { aptosClient } from "@/lib/aptos-client";
 import { AccountAddress } from "@aptos-labs/ts-sdk";
 

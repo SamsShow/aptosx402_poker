@@ -53,9 +53,9 @@ export function GameInfo({ gameId }: GameInfoProps) {
   const [showFundingModal, setShowFundingModal] = useState(false);
   const [fundingError, setFundingError] = useState<string | null>(null);
   
-  // Fetch balance status for all players
+  // Fetch balance status for all players (with debouncing)
   const fetchBalanceStatus = useCallback(async () => {
-    if (!gameId) return;
+    if (!gameId || gameState?.stage !== "waiting") return;
     
     try {
       const res = await fetch(`/api/game/${gameId}/sync-balances`);
@@ -67,14 +67,19 @@ export function GameInfo({ gameId }: GameInfoProps) {
     } catch (error) {
       console.error("Failed to fetch balance status:", error);
     }
-  }, [gameId]);
+  }, [gameId, gameState?.stage]);
   
-  // Fetch balance status on mount and when game state changes
+  // Fetch balance status on mount and when game state changes (debounced to avoid rate limits)
   useEffect(() => {
-    if (gameId && gameState?.stage === "waiting") {
+    if (!gameId || gameState?.stage !== "waiting") return;
+    
+    // Debounce: only fetch once per 10 seconds max to avoid rate limits
+    const timeoutId = setTimeout(() => {
       fetchBalanceStatus();
-    }
-  }, [gameId, gameState?.stage, fetchBalanceStatus]);
+    }, 10000); // 10 second debounce - prevents excessive API calls
+    
+    return () => clearTimeout(timeoutId);
+  }, [gameId, gameState?.stage]); // Removed fetchBalanceStatus from deps to prevent infinite loops
   
   // Sync balances from wallets
   const syncBalances = async () => {

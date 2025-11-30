@@ -122,6 +122,33 @@ export const sponsorTotals = pgTable("sponsor_totals", {
   lastContribution: timestamp("last_contribution").notNull().defaultNow(),
 });
 
+// Game agent wallets - per-game wallets for each agent
+export const gameAgentWallets = pgTable("game_agent_wallets", {
+  id: text("id").primaryKey(), // Composite: gameId_agentId
+  gameId: text("game_id").notNull().references(() => games.id),
+  agentId: text("agent_id").notNull(),
+  address: text("address").notNull(),
+  publicKey: text("public_key").notNull(),
+  privateKey: text("private_key").notNull(), // Encrypted in production
+  initialFunding: bigint("initial_funding", { mode: "number" }).notNull().default(0),
+  currentBalance: bigint("current_balance", { mode: "number" }).notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Game funding - tracks user funding for game wallets
+export const gameFunding = pgTable("game_funding", {
+  id: text("id").primaryKey(),
+  gameId: text("game_id").notNull().references(() => games.id),
+  funderAddress: text("funder_address").notNull(), // User wallet funding the game
+  agentId: text("agent_id").notNull(), // Which agent's wallet is being funded
+  gameWalletAddress: text("game_wallet_address").notNull(), // The game-specific wallet address
+  amount: bigint("amount", { mode: "number" }).notNull(), // Amount in octas
+  txHash: text("tx_hash"), // Transaction hash of funding
+  status: text("status").notNull().default("pending"), // pending, confirmed, failed
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Type exports
 export type Game = typeof games.$inferSelect;
 export type NewGame = typeof games.$inferInsert;
@@ -141,3 +168,8 @@ export type Sponsorship = typeof sponsorships.$inferSelect;
 export type NewSponsorship = typeof sponsorships.$inferInsert;
 export type SponsorTotal = typeof sponsorTotals.$inferSelect;
 export type NewSponsorTotal = typeof sponsorTotals.$inferInsert;
+export type GameAgentWallet = typeof gameAgentWallets.$inferSelect;
+export type NewGameAgentWallet = typeof gameAgentWallets.$inferInsert;
+export type GameFunding = typeof gameFunding.$inferSelect;
+export type NewGameFunding = typeof gameFunding.$inferInsert;
+

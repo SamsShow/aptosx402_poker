@@ -208,27 +208,61 @@ class WalletManager {
     };
   }
   
+  // Cache for wallet infos to avoid excessive API calls
+  private walletInfoCache: Record<string, { info: WalletInfo; timestamp: number }> = {};
+  private readonly CACHE_TTL = 10000; // 10 seconds cache
+
   /**
-   * Get all wallet infos (optimized with parallel fetching)
+   * Get all wallet infos (optimized with parallel fetching and caching)
    */
-  async getAllWalletInfos(): Promise<Record<string, WalletInfo>> {
+  async getAllWalletInfos(forceRefresh = false): Promise<Record<string, WalletInfo>> {
+    const now = Date.now();
     const infos: Record<string, WalletInfo> = {};
+    const agentIds = Array.from(this.walletCache.keys());
     
-    // Fetch all wallet infos in parallel
-    const promises = Array.from(this.walletCache.keys()).map(async (agentId) => {
-      const info = await this.getWalletInfo(agentId);
-      return { agentId, info };
-    });
+    // Check cache first
+    const needsRefresh: string[] = [];
+    for (const agentId of agentIds) {
+      const cached = this.walletInfoCache[agentId];
+      if (!forceRefresh && cached && (now - cached.timestamp) < this.CACHE_TTL) {
+        infos[agentId] = cached.info;
+      } else {
+        needsRefresh.push(agentId);
+      }
+    }
     
-    const results = await Promise.all(promises);
-    
-    for (const { agentId, info } of results) {
-      if (info) {
-        infos[agentId] = info;
+    // Only fetch balances for agents that need refresh
+    if (needsRefresh.length > 0) {
+      const promises = needsRefresh.map(async (agentId) => {
+        const info = await this.getWalletInfo(agentId);
+        if (info) {
+          // Update cache
+          this.walletInfoCache[agentId] = { info, timestamp: now };
+        }
+        return { agentId, info };
+      });
+      
+      const results = await Promise.all(promises);
+      
+      for (const { agentId, info } of results) {
+        if (info) {
+          infos[agentId] = info;
+        }
       }
     }
     
     return infos;
+  }
+  
+  /**
+   * Clear wallet info cache (call after funding operations)
+   */
+  clearWalletInfoCache(agentId?: string): void {
+    if (agentId) {
+      delete this.walletInfoCache[agentId];
+    } else {
+      this.walletInfoCache = {};
+    }
   }
   
   /**
@@ -324,6 +358,9 @@ class WalletManager {
       const newBalance = await getAccountBalance(address);
       await this.updateBalanceInDB(agentId, Number(newBalance));
       
+      // Clear cache for this agent
+      this.clearWalletInfoCache(agentId);
+
       return true;
     } catch (error) {
       console.error(`[WalletManager] Failed to fund ${agentId}:`, error);

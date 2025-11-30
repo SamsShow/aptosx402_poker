@@ -15,8 +15,8 @@ interface UseGameOptions {
 }
 
 export function useGame(options: UseGameOptions = {}) {
-  const { gameId, autoConnect = true, pollInterval = 2000 } = options;
-  
+  const { gameId, autoConnect = true, pollInterval = 10000 } = options; // Increased from 2s to 10s
+
   const {
     gameState,
     thoughts,
@@ -31,17 +31,17 @@ export function useGame(options: UseGameOptions = {}) {
     setLoading,
     setError,
   } = useGameStore();
-  
+
   const pollRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Fetch game state
   const fetchGame = useCallback(async () => {
     if (!gameId) return;
-    
+
     try {
       const res = await fetch(`/api/game/${gameId}`);
       const data = await res.json();
-      
+
       if (data.success) {
         setGameState(data.gameState);
         // Update thoughts and transactions if provided
@@ -61,7 +61,7 @@ export function useGame(options: UseGameOptions = {}) {
       setConnected(false);
     }
   }, [gameId, setGameState, addThought, addTransaction, setConnected, setError]);
-  
+
   // Create a new game
   const createGame = useCallback(async (
     agentIds?: string[],
@@ -77,7 +77,7 @@ export function useGame(options: UseGameOptions = {}) {
         body: JSON.stringify({ agentIds, buyIn, smallBlind, bigBlind }),
       });
       const data = await res.json();
-      
+
       if (data.success) {
         setGameState(data.gameState);
         return data.gameId;
@@ -92,7 +92,7 @@ export function useGame(options: UseGameOptions = {}) {
       setLoading(false);
     }
   }, [setGameState, setLoading, setError]);
-  
+
   // Start the game loop
   const startGame = useCallback(async (
     id?: string,
@@ -102,7 +102,7 @@ export function useGame(options: UseGameOptions = {}) {
   ): Promise<boolean> => {
     const targetId = id || gameId;
     if (!targetId) return false;
-    
+
     try {
       const res = await fetch(`/api/game/${targetId}/run`, {
         method: "POST",
@@ -116,12 +116,12 @@ export function useGame(options: UseGameOptions = {}) {
       return false;
     }
   }, [gameId, setError]);
-  
+
   // Stop the game loop
   const stopGame = useCallback(async (id?: string): Promise<boolean> => {
     const targetId = id || gameId;
     if (!targetId) return false;
-    
+
     try {
       const res = await fetch(`/api/game/${targetId}/run`, {
         method: "DELETE",
@@ -133,24 +133,24 @@ export function useGame(options: UseGameOptions = {}) {
       return false;
     }
   }, [gameId, setError]);
-  
+
   // Set up polling
   useEffect(() => {
     if (!autoConnect || !gameId) return;
-    
+
     // Initial fetch
     fetchGame();
-    
+
     // Set up polling
     pollRef.current = setInterval(fetchGame, pollInterval);
-    
+
     return () => {
       if (pollRef.current) {
         clearInterval(pollRef.current);
       }
     };
   }, [autoConnect, gameId, pollInterval, fetchGame]);
-  
+
   return {
     gameState,
     thoughts,
@@ -170,7 +170,7 @@ export function useGame(options: UseGameOptions = {}) {
  */
 export function useNewGame() {
   const { createGame, startGame, stopGame, ...rest } = useGame({ autoConnect: false });
-  
+
   const createAndStart = useCallback(async (
     agentIds?: string[],
     options?: {
@@ -188,14 +188,14 @@ export function useNewGame() {
       options?.smallBlind,
       options?.bigBlind
     );
-    
+
     if (gameId) {
       await startGame(gameId, options?.turnDelay, options?.handDelay, options?.maxHands);
     }
-    
+
     return gameId;
   }, [createGame, startGame]);
-  
+
   return {
     ...rest,
     createGame,
