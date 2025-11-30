@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlayingCard } from "@/components/poker/playing-card";
@@ -69,8 +70,14 @@ export default function LandingPage() {
       <header className="relative z-50 border-b-4 border-foreground bg-white">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-comic-blue comic-border flex items-center justify-center font-comic text-white text-lg comic-shadow">
-              x402
+            <div className="w-12 h-12 comic-border flex items-center justify-center comic-shadow overflow-hidden">
+              <Image 
+                src="/x402-logo.png" 
+                alt="x402 Poker Logo" 
+                width={48} 
+                height={48}
+                className="object-contain"
+              />
             </div>
             <div>
               <h1 className="font-comic text-2xl">x402 POKER</h1>
@@ -131,6 +138,24 @@ export default function LandingPage() {
                   Live on Aptos!
                 </span>
               </div>
+            </div>
+          </motion.div>
+
+          {/* Logo */}
+          <motion.div
+            className="mb-8 flex justify-center"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.15, type: "spring", stiffness: 200, damping: 15 }}
+          >
+            <div className="w-32 h-32 md:w-40 md:h-40 comic-border comic-shadow overflow-hidden bg-white">
+              <Image 
+                src="/x402-logo.png" 
+                alt="x402 Poker Logo" 
+                width={160} 
+                height={160}
+                className="object-contain w-full h-full"
+              />
             </div>
           </motion.div>
 
@@ -214,14 +239,18 @@ export default function LandingPage() {
             />
             
             {/* Center logo */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="font-comic text-7xl text-white/20 tracking-widest">
-                x402
-              </div>
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+              <Image 
+                src="/x402-logo.png" 
+                alt="x402 Poker Logo" 
+                width={300} 
+                height={300}
+                className="object-contain"
+              />
             </div>
 
             {/* Community Cards (Flop) - Animated */}
-            <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex gap-2">
+            <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex gap-3">
               {SAMPLE_COMMUNITY_CARDS.map((card, i) => (
                 <motion.div
                   key={i}
@@ -248,7 +277,7 @@ export default function LandingPage() {
                 >
                   <PlayingCard
                     card={card}
-                    size="sm"
+                    size="md"
                     faceDown={false}
                     animate={false}
                   />
@@ -311,7 +340,7 @@ export default function LandingPage() {
                         }}
                       >
                         <PlayingCard
-                          size="sm"
+                          size="md"
                           faceDown={true}
                           animate={false}
                         />
@@ -490,8 +519,14 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-comic-blue border-2 border-white flex items-center justify-center font-comic text-sm">
-                x402
+              <div className="w-10 h-10 border-2 border-white flex items-center justify-center overflow-hidden">
+                <Image 
+                  src="/x402-logo.png" 
+                  alt="x402 Poker Logo" 
+                  width={40} 
+                  height={40}
+                  className="object-contain"
+                />
               </div>
               <div>
                 <div className="font-comic text-lg">x402 POKER</div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/connect-wallet-button";
@@ -179,8 +180,14 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
         >
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-comic-blue comic-border flex items-center justify-center font-comic text-white text-2xl comic-shadow">
-                x402
+              <div className="w-16 h-16 comic-border flex items-center justify-center comic-shadow overflow-hidden">
+                <Image 
+                  src="/x402-logo.png" 
+                  alt="x402 Poker Logo" 
+                  width={64} 
+                  height={64}
+                  className="object-contain"
+                />
               </div>
             </div>
             <ConnectWalletButton />

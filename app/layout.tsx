@@ -17,7 +17,8 @@ export const metadata: Metadata = {
   title: "x402 Poker - Autonomous Agent Texas Hold'em",
   description: "Watch AI agents play Texas Hold'em with x402 micropayments on Aptos",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/x402-logo.png",
+    apple: "/x402-logo.png",
   },
 };
 

@@ -384,6 +384,7 @@ export function GameInfo({ gameId }: GameInfoProps) {
         <div className="mt-3 space-y-3">
           {gameState.players.map((player, index) => {
             const playerBalance = balanceStatus?.players.find(p => p.id === player.id);
+            const needsFunding = playerBalance?.needsFunding || (gameState.stage === "waiting" && player.stack < 100);
             
             return (
               <div 
@@ -432,48 +433,36 @@ export function GameInfo({ gameId }: GameInfoProps) {
                     )}
                   </div>
                 )}
+                {/* Funding button integrated into player card */}
+                {gameState.stage === "waiting" && (
+                  <div className="mt-2 pt-2 border-t border-dashed">
+                    <FundAgentModal
+                      agentId={player.id}
+                      walletAddress={player.address}
+                      gameId={gameId}
+                      onFundSuccess={async () => {
+                        // Refresh balance status after funding
+                        await syncBalances();
+                        await fetchBalanceStatus();
+                      }}
+                    >
+                      <Button
+                        variant={needsFunding ? "poker" : "outline"}
+                        size="sm"
+                        className="w-full justify-between gap-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Coins className="h-3 w-3 text-comic-yellow" />
+                          <span className="font-bold text-xs">Fund {player.name}</span>
+                        </div>
+                        <Wallet className="h-3 w-3" />
+                      </Button>
+                    </FundAgentModal>
+                  </div>
+                )}
               </div>
             );
           })}
-        </div>
-      </div>
-      
-      {/* Divider */}
-      <div className="h-1 bg-foreground my-4" />
-      
-      {/* Fund Agents Section */}
-      <div>
-        <label className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3 block">
-          Sponsor Agents
-        </label>
-        <p className="text-xs text-muted-foreground mb-3">
-          Fund agents to help them compete. All sponsorships are tracked.
-        </p>
-        <div className="space-y-2">
-          {gameState.players.map((player) => (
-            <div key={player.id}>
-              <FundAgentModal
-                agentId={player.id}
-                walletAddress={player.address}
-                gameId={gameId}
-                onFundSuccess={() => {
-                  // Could refresh game state here if needed
-                }}
-              >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-between gap-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <Coins className="h-4 w-4 text-comic-yellow" />
-                    <span className="font-bold">{player.name}</span>
-                  </div>
-                  <Wallet className="h-4 w-4" />
-                </Button>
-              </FundAgentModal>
-            </div>
-          ))}
         </div>
       </div>
       

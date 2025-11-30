@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import type { GameState } from "@/types";
 import { PlayerSeat } from "./player-seat";
 import { CommunityCards } from "./community-cards";
@@ -63,12 +64,14 @@ export function PokerTable({ gameState }: PokerTableProps) {
         <div className="absolute inset-6 rounded-[50%] border-4 border-foreground/30" />
         
         {/* Table logo */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="font-comic text-5xl text-white/30 tracking-widest" style={{
-            textShadow: '3px 3px 0 rgba(0,0,0,0.2)'
-          }}>
-            x402
-          </div>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+          <Image 
+            src="/x402-logo.png" 
+            alt="x402 Poker Logo" 
+            width={200} 
+            height={200}
+            className="object-contain"
+          />
         </div>
       </div>
 

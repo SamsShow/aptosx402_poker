@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { PokerTable } from "./poker/poker-table";
 import { ThoughtFeed } from "./poker/thought-feed";
 import { TransactionFeed } from "./poker/transaction-feed";
@@ -143,8 +144,14 @@ export function PokerLobby({ initialGameId }: PokerLobbyProps) {
             <ChevronLeft className="h-4 w-4" />
             Back to Lobby
           </Button>
-          <div className="w-12 h-12 bg-comic-blue comic-border flex items-center justify-center font-comic text-white text-xl comic-shadow">
-            x402
+          <div className="w-12 h-12 comic-border flex items-center justify-center comic-shadow overflow-hidden">
+            <Image 
+              src="/x402-logo.png" 
+              alt="x402 Poker Logo" 
+              width={48} 
+              height={48}
+              className="object-contain"
+            />
           </div>
           <div>
             <h1 className="font-comic text-3xl text-foreground tracking-wide">
