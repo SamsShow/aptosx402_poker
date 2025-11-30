@@ -17,7 +17,7 @@ export async function GET(
 ) {
   try {
     const { gameId } = await params;
-    
+
     const gameState = gameCoordinator.getGame(gameId);
     if (!gameState) {
       return NextResponse.json(
@@ -25,22 +25,46 @@ export async function GET(
         { status: 404 }
       );
     }
-    
-    // Ensure wallet manager is initialized
-    if (!walletManager.isInitialized()) {
-      await walletManager.initialize();
+
+    // Try to get per-game wallet balances first
+    let walletInfos: Record<string, { balance: number; balanceApt: number; address: string }> = {};
+
+    try {
+      const { gameWalletManager } = await import("@/lib/game-wallet-manager");
+      const gameWallets = await gameWalletManager.getGameWalletInfos(gameId);
+
+      // If we have game wallets, use those
+      if (gameWallets.length > 0) {
+        for (const wallet of gameWallets) {
+          walletInfos[wallet.agentId] = {
+            balance: wallet.balance,
+            balanceApt: wallet.balanceApt,
+            address: wallet.address,
+          };
+        }
+      } else {
+        // Fallback to global wallets for old games
+        if (!walletManager.isInitialized()) {
+          await walletManager.initialize();
+        }
+        walletInfos = await walletManager.getAllWalletInfos(false);
+      }
+    } catch (error) {
+      console.error("[API] Failed to get game wallets, falling back to global:", error);
+      // Fallback to global wallets
+      if (!walletManager.isInitialized()) {
+        await walletManager.initialize();
+      }
+      walletInfos = await walletManager.getAllWalletInfos(false);
     }
-    
-    // Fetch real-time wallet balances for all players (use cache to avoid rate limits)
-    const walletInfos = await walletManager.getAllWalletInfos(false);
-    
+
     // Build response with current balances
     const playerBalances = gameState.players.map((player) => {
       const walletInfo = walletInfos[player.id];
       const balanceOctas = walletInfo?.balance || 0;
       const balanceChips = octasToChips(balanceOctas);
       const minRequired = APT_CONVERSION.MIN_BALANCE_CHIPS;
-      
+
       return {
         id: player.id,
         name: player.name,
@@ -57,10 +81,10 @@ export async function GET(
         fundingGap: Math.max(0, minRequired - balanceChips),
       };
     });
-    
+
     const allFunded = playerBalances.every(p => p.hasSufficientFunds);
     const fundedCount = playerBalances.filter(p => p.hasSufficientFunds).length;
-    
+
     return NextResponse.json({
       success: true,
       gameId,
@@ -93,7 +117,7 @@ export async function POST(
 ) {
   try {
     const { gameId } = await params;
-    
+
     const gameState = gameCoordinator.getGame(gameId);
     if (!gameState) {
       return NextResponse.json(
@@ -101,7 +125,7 @@ export async function POST(
         { status: 404 }
       );
     }
-    
+
     // Can only sync balances when game is waiting to start
     if (gameState.stage !== "waiting" && gameState.stage !== "settled") {
       return NextResponse.json(
@@ -109,38 +133,65 @@ export async function POST(
         { status: 400 }
       );
     }
-    
-    // Ensure wallet manager is initialized
-    if (!walletManager.isInitialized()) {
-      await walletManager.initialize();
+
+    // Try to get per-game wallet balances first
+    let walletInfos: Record<string, { balance: number; balanceApt: number; address: string }> = {};
+
+    try {
+      const { gameWalletManager } = await import("@/lib/game-wallet-manager");
+      const gameWallets = await gameWalletManager.getGameWalletInfos(gameId);
+
+      // If we have game wallets, refresh their balances from blockchain
+      if (gameWallets.length > 0) {
+        await gameWalletManager.refreshWalletBalances(gameId);
+        const refreshedWallets = await gameWalletManager.getGameWalletInfos(gameId);
+
+        for (const wallet of refreshedWallets) {
+          walletInfos[wallet.agentId] = {
+            balance: wallet.balance,
+            balanceApt: wallet.balanceApt,
+            address: wallet.address,
+          };
+        }
+      } else {
+        // Fallback to global wallets for old games
+        if (!walletManager.isInitialized()) {
+          await walletManager.initialize();
+        }
+        walletInfos = await walletManager.getAllWalletInfos(true);
+      }
+    } catch (error) {
+      console.error("[API] Failed to get game wallets, falling back to global:", error);
+      // Fallback to global wallets
+      if (!walletManager.isInitialized()) {
+        await walletManager.initialize();
+      }
+      walletInfos = await walletManager.getAllWalletInfos(true);
     }
-    
-    // Fetch real-time wallet balances (force refresh on POST)
-    const walletInfos = await walletManager.getAllWalletInfos(true);
-    
+
     // Build wallet balances map (in octas)
     const walletBalances: Record<string, number> = {};
     for (const [agentId, info] of Object.entries(walletInfos)) {
       walletBalances[agentId] = info.balance;
     }
-    
+
     // Update player stacks with real balances
     const updatedState = updatePlayerStacks(gameState, walletBalances);
-    
+
     // Validate balances
     const validation = validatePlayerBalances(updatedState);
-    
+
     // Update the game in the coordinator
     // We need to directly update the coordinator's game state
     const session = (gameCoordinator as any).games.get(gameId);
     if (session) {
       session.state = updatedState;
     }
-    
+
     // Build response
     const playerBalances = updatedState.players.map((player) => {
       const walletInfo = walletInfos[player.id];
-      
+
       return {
         id: player.id,
         name: player.name,
@@ -150,7 +201,7 @@ export async function POST(
         hasSufficientFunds: player.stack >= APT_CONVERSION.MIN_BALANCE_CHIPS,
       };
     });
-    
+
     return NextResponse.json({
       success: true,
       gameId,
