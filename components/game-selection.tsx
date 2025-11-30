@@ -138,6 +138,11 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
     onSelectGame(gameId);
   };
 
+  // Manual refresh with indicator
+  const handleManualRefresh = () => {
+    fetchGames(true);
+  };
+
   const formatStage = (stage: string): string => {
     const names: Record<string, string> = {
       waiting: "WAITING",
