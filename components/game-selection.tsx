@@ -56,7 +56,6 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   const [games, setGames] = useState<GameSummary[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isMounted = useRef(true);
@@ -120,43 +119,16 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
 
   const handleCreateGame = async () => {
     setCreating(true);
-    setLoadingStep(0);
-
-    const loadingSteps = [
-      "Shuffling deck...",
-      "Waking up agents...",
-      "Generating wallets...",
-      "Setting up table...",
-      "Ready to play!"
-    ];
-
-    // Animate through loading steps more slowly
-    const stepInterval = setInterval(() => {
-      setLoadingStep(prev => {
-        if (prev < loadingSteps.length - 1) return prev + 1;
-        return prev;
-      });
-    }, 1200); // Slower: 1.2 seconds per step
-
     try {
-      // Pass connected wallet address as creator
       const creatorAddress = connected ? account?.address?.toString() : undefined;
       const gameId = await onCreateGame(creatorAddress);
       if (gameId) {
-        // Complete the animation smoothly
-        setLoadingStep(loadingSteps.length - 1);
-        await new Promise(resolve => setTimeout(resolve, 800));
-        // Go directly to the game
         onSelectGame(gameId);
       }
     } catch (err) {
       console.error("Failed to create game:", err);
-      clearInterval(stepInterval);
-      setCreating(false);
-      setLoadingStep(0);
     } finally {
-      clearInterval(stepInterval);
-      // Don't reset creating/loadingStep here - let navigation handle it
+      setCreating(false);
     }
   };
 
@@ -164,19 +136,6 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
   const handleJoinGame = (gameId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
     onSelectGame(gameId);
-  };
-
-  // Manual refresh with indicator
-  const loadingMessages = [
-    "Shuffling deck...",
-    "Waking up agents...",
-    "Generating wallets...",
-    "Setting up table...",
-    "Ready to play!"
-  ];
-
-  const handleManualRefresh = () => {
-    fetchGames(true);
   };
 
   const formatStage = (stage: string): string => {
@@ -204,161 +163,6 @@ export function GameSelection({ onSelectGame, onCreateGame }: GameSelectionProps
     };
     return colors[stage] || "bg-muted";
   };
-
-  // Full-screen loading view with ONE continuous animation
-  const LoadingView = () => {
-    const progress = ((loadingStep + 1) / loadingMessages.length) * 100;
-
-    return (
-      <div className="min-h-screen bg-background halftone">
-        <div className="max-w-4xl mx-auto p-8">
-          {/* Keep the header */}
-          <motion.div
-            className="mb-12"
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 comic-border flex items-center justify-center comic-shadow overflow-hidden">
-                  <Image
-                    src="/x402-logo.png"
-                    alt="x402 Poker Logo"
-                    width={64}
-                    height={64}
-                    className="object-contain"
-                  />
-                </div>
-              </div>
-              <ConnectWalletButton />
-            </div>
-            <div className="text-center">
-              <h1 className="font-comic text-5xl mb-2">GAME LOBBY</h1>
-              <p className="text-muted-foreground font-bold">
-                Creating your game...
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Loading content - centered */}
-          <div className="flex items-center justify-center" style={{ minHeight: '60vh' }}>
-            <motion.div
-              className="text-center max-w-lg w-full"
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.5 }}
-            >
-              {/* Animated poker chips - continuous smooth rotation */}
-              <div className="relative h-40 mb-12">
-                <motion.div
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-20 bg-comic-red comic-border rounded-full flex items-center justify-center font-comic text-white text-3xl shadow-lg"
-                  animate={{
-                    y: [0, -20, 0],
-                    rotate: 360,
-                  }}
-                  transition={{
-                    y: {
-                      duration: 3,
-                      repeat: Infinity,
-                      ease: "easeInOut"
-                    },
-                    rotate: {
-                      duration: 4,
-                      repeat: Infinity,
-                      ease: "linear"
-                    }
-                  }}
-                >
-                  ♠
-                </motion.div>
-                <motion.div
-                  className="absolute top-10 left-1/2 -translate-x-1/2 w-20 h-20 bg-comic-blue comic-border rounded-full flex items-center justify-center font-comic text-white text-3xl shadow-lg"
-                  animate={{
-                    y: [0, -20, 0],
-                    rotate: -360,
-                  }}
-                  transition={{
-                    y: {
-                      duration: 3,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                      delay: 0.4
-                    },
-                    rotate: {
-                      duration: 4,
-                      repeat: Infinity,
-                      ease: "linear",
-                      delay: 0.4
-                    }
-                  }}
-                >
-                  ♥
-                </motion.div>
-              </div>
-
-              {/* Continuous sliding text - ONE animation, not multiple restarts */}
-              <div className="relative h-20 mb-8 overflow-hidden">
-                <motion.div
-                  className="font-comic text-4xl whitespace-nowrap"
-                  animate={{
-                    y: -loadingStep * 80, // Slide up continuously
-                  }}
-                  transition={{
-                    duration: 0.8,
-                    ease: [0.25, 0.1, 0.25, 1] // Smooth easing
-                  }}
-                >
-                  {loadingMessages.map((message, index) => (
-                    <div
-                      key={index}
-                      className="h-20 flex items-center justify-center"
-                      style={{
-                        opacity: index === loadingStep ? 1 : 0.3,
-                        transform: index === loadingStep ? 'scale(1)' : 'scale(0.9)',
-                        transition: 'opacity 0.8s ease, transform 0.8s ease'
-                      }}
-                    >
-                      {message}
-                    </div>
-                  ))}
-                </motion.div>
-              </div>
-
-              {/* Continuous smooth progress bar */}
-              <div className="mb-6">
-                <div className="h-3 bg-muted rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-comic-blue via-comic-purple to-comic-green rounded-full"
-                    animate={{
-                      width: `${progress}%`
-                    }}
-                    transition={{
-                      duration: 1.0,
-                      ease: [0.25, 0.1, 0.25, 1]
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Smooth percentage counter */}
-              <motion.p
-                className="text-muted-foreground font-bold text-lg"
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                {Math.round(progress)}% Complete
-              </motion.p>
-            </motion.div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Show loading view instead of normal content when creating
-  if (creating) {
-    return <LoadingView />;
-  }
 
   return (
     <div className="min-h-screen bg-background halftone p-8">
