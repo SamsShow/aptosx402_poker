@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { TransactionRecord } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, formatAddress, formatAmount } from "@/lib/utils";
+import { chipsToOctas } from "@/lib/poker/constants";
 
 import {
   ArrowRight,
@@ -18,11 +19,20 @@ interface TransactionFeedProps {
 }
 
 /**
- * Filter to only show real blockchain transactions
+ * Filter to only show actual on-chain transactions
  * - Must have a valid txHash (not "pending_settlement" or empty)
  * - Must be confirmed status
+ * - Exclude sponsor transactions (funding transactions)
  */
-function isRealBlockchainTx(tx: TransactionRecord): boolean {
+function isOnChainTx(tx: TransactionRecord): boolean {
+  // Exclude sponsor transactions
+  if (tx.type === "sponsor") {
+    return false;
+  }
+  
+  // Only show transactions that are actually on-chain:
+  // - Must have a real txHash (not "pending_settlement")
+  // - Must be confirmed
   return !!(
     tx.txHash && 
     tx.txHash !== "pending_settlement" && 
@@ -31,8 +41,8 @@ function isRealBlockchainTx(tx: TransactionRecord): boolean {
 }
 
 export function TransactionFeed({ transactions }: TransactionFeedProps) {
-  // Filter to only real blockchain transactions
-  const realTransactions = transactions.filter(isRealBlockchainTx);
+  // Filter to only show actual on-chain transactions (exclude pending bets and sponsors)
+  const onChainTransactions = transactions.filter(isOnChainTx);
 
   return (
     <div className="flex flex-col">
@@ -45,14 +55,14 @@ export function TransactionFeed({ transactions }: TransactionFeedProps) {
           <h3 className="font-comic text-lg">ON-CHAIN TXS</h3>
         </div>
         <div className="comic-badge bg-comic-blue text-white px-2 py-0.5 text-xs">
-          {realTransactions.length}
+          {onChainTransactions.length}
         </div>
       </div>
 
       {/* Transaction list */}
       <ScrollArea className="h-[200px] -mx-4 px-4">
         <AnimatePresence initial={false}>
-          {realTransactions.length === 0 ? (
+          {onChainTransactions.length === 0 ? (
             <div className="text-center py-6 comic-card p-4">
               <Receipt className="h-8 w-8 mx-auto mb-2 text-comic-blue" />
               <p className="font-comic text-sm">NO ON-CHAIN TXS YET</p>
@@ -62,7 +72,7 @@ export function TransactionFeed({ transactions }: TransactionFeedProps) {
             </div>
           ) : (
             <div className="space-y-2">
-              {realTransactions.map((tx, index) => (
+              {onChainTransactions.map((tx, index) => (
                 <TransactionRow key={tx.id} tx={tx} index={index} />
               ))}
             </div>
@@ -88,13 +98,22 @@ function TransactionRow({ tx, index }: TransactionRowProps) {
     sponsor: "bg-comic-pink",
   };
 
-  // Get explorer URL
-  const explorerUrl = tx.explorerUrl || (tx.txHash ? `https://explorer.aptoslabs.com/txn/${tx.txHash}?network=testnet` : null);
+  // Determine status indicator
+  const isPending = tx.status === "pending" || tx.txHash === "pending_settlement";
+  const isConfirmed = tx.status === "confirmed" && tx.txHash && tx.txHash !== "pending_settlement";
 
+  // Get explorer URL (only for confirmed transactions with real txHash)
+  const explorerUrl = isConfirmed 
+    ? (tx.explorerUrl || (tx.txHash ? `https://explorer.aptoslabs.com/txn/${tx.txHash}?network=testnet` : null))
+    : null;
+  
   const content = (
     <>
-      {/* Status - confirmed icon */}
-      <div className="w-6 h-6 flex items-center justify-center comic-border flex-shrink-0 bg-comic-green text-white">
+      {/* Status icon - green for confirmed, orange for pending */}
+      <div className={cn(
+        "w-6 h-6 flex items-center justify-center comic-border flex-shrink-0 text-white",
+        isConfirmed ? "bg-comic-green" : "bg-comic-orange"
+      )}>
         <CheckCircle className="h-4 w-4" />
       </div>
 
@@ -111,7 +130,7 @@ function TransactionRow({ tx, index }: TransactionRowProps) {
 
       {/* Amount in APT */}
       <div className="font-comic text-base flex-shrink-0 text-comic-green">
-        {formatAmount(tx.amountOctas || tx.amount)} APT
+        {formatAmount(tx.amountOctas ?? chipsToOctas(tx.amount))} APT
       </div>
 
       {/* Type badge */}

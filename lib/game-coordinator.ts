@@ -11,6 +11,7 @@ import type { GameState, ThoughtRecord, TransactionRecord, ActionType } from "@/
 import { processAction, startHand, prepareNextHand } from "@/lib/poker/engine";
 import { generateRandomSeed } from "@/lib/poker/deck";
 import { chipsToOctas } from "@/lib/poker/constants";
+import { evaluateHand, determineWinners } from "@/lib/poker/evaluator";
 import { generateGameId } from "@/lib/utils";
 import { saveGame, saveHand, saveAction, saveThought, saveTransaction } from "@/lib/db/game-db";
 import { walletManager } from "@/lib/wallet-manager";
@@ -371,11 +372,77 @@ class GameCoordinator {
 
       // Check for game end
       if (newState.stage === "settled" || newState.stage === "showdown") {
-        const winners = newState.players
-          .filter((p) => !p.folded)
-          .map((p) => p.id);
+        // Properly determine winners by evaluating hands
+        let winners: string[];
+        
+        if (newState.stage === "showdown") {
+          // Evaluate hands for non-folded players
+          const contenders = newState.players
+            .filter((p) => !p.folded)
+            .map((p) => ({
+              id: p.id,
+              hand: evaluateHand(p.cards, newState.communityCards),
+            }));
+          
+          const winnerHands = determineWinners(contenders);
+          winners = winnerHands.map((w) => w.id);
+        } else {
+          // Stage is "settled" - winners already determined by engine
+          // First try: Check which players gained chips (they won)
+          let playersWhoGainedChips: string[] = [];
+          if (currentHistory) {
+            playersWhoGainedChips = newState.players
+              .filter((p) => {
+                const startPlayer = currentHistory.startState.players.find(sp => sp.id === p.id);
+                if (!startPlayer) return false;
+                const chipIncrease = p.stack - startPlayer.stack;
+                console.log(`[Coordinator] Player ${p.id}: start=${startPlayer.stack}, end=${p.stack}, increase=${chipIncrease}`);
+                return chipIncrease > 0;
+              })
+              .map((p) => p.id);
+          }
+          
+          if (playersWhoGainedChips.length > 0) {
+            winners = playersWhoGainedChips;
+            console.log(`[Coordinator] Found winners by chip increase: ${winners.join(', ')}`);
+          } else {
+            // Fallback: all non-folded players (they won by default if everyone else folded)
+            winners = newState.players
+              .filter((p) => !p.folded)
+              .map((p) => p.id);
+            console.log(`[Coordinator] Using non-folded players as winners: ${winners.join(', ')}`);
+          }
+          
+          // If still no winners, check if pot was distributed (someone must have won)
+          if (winners.length === 0 && newState.pot === 0) {
+            // Pot is 0, so it was distributed - find who has the most chips increase
+            // This handles edge cases where chip comparison fails
+            const nonFolded = newState.players.filter((p) => !p.folded);
+            if (nonFolded.length > 0) {
+              winners = nonFolded.map((p) => p.id);
+              console.log(`[Coordinator] Pot was 0, using non-folded players: ${winners.join(', ')}`);
+            }
+          }
+        }
 
-        if (currentHistory) {
+        // Ensure we always have at least one winner
+        if (winners.length === 0) {
+          console.warn(`[Coordinator] No winners determined! Using fallback: all non-folded players`);
+          winners = newState.players
+            .filter((p) => !p.folded)
+            .map((p) => p.id);
+          
+          // If still no winners (everyone folded - shouldn't happen), use last player who acted
+          if (winners.length === 0 && currentHistory && currentHistory.actions.length > 0) {
+            const lastAction = currentHistory.actions[currentHistory.actions.length - 1];
+            winners = [lastAction.playerId];
+            console.warn(`[Coordinator] Using last action player as winner: ${lastAction.playerId}`);
+          }
+        }
+
+        console.log(`[Coordinator] Determined winners: ${winners.join(', ') || 'NONE'} (stage: ${newState.stage}, pot: ${newState.pot})`);
+
+        if (currentHistory && winners.length > 0) {
           currentHistory.winners = winners;
           currentHistory.endState = newState;
 
@@ -462,6 +529,12 @@ class GameCoordinator {
     // In a production system, you might use a smart contract escrow.
 
     console.log(`[Coordinator] Settling hand - Pot: ${potOctas} octas, Winners: ${winnerIds.join(', ')}`);
+    console.log(`[Coordinator] Found ${losers.length} losers: ${losers.map(l => `${l.playerId} (${l.amount} octas)`).join(', ')}`);
+
+    if (losers.length === 0) {
+      console.log(`[Coordinator] No losers found - all winners or no bets. Skipping settlement transfers.`);
+      return;
+    }
 
     // Check if game has per-game wallets
     const gameWallets = await gameWalletManager.getGameWalletInfos(gameId).catch(() => []);

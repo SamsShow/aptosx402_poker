@@ -468,17 +468,6 @@ export function GameInfo({ gameId }: GameInfoProps) {
       
       {/* Divider */}
       <div className="h-1 bg-foreground my-4" />
-      
-      {/* View on explorer link */}
-      <a 
-        href={`https://explorer.aptoslabs.com/account/${gameState.gameId}?network=testnet`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="comic-btn bg-comic-blue text-white px-4 py-2 flex items-center justify-center gap-2 w-full"
-      >
-        <span className="font-comic">VIEW ON EXPLORER</span>
-        <ExternalLink className="h-4 w-4" />
-      </a>
     </div>
   );
 }
